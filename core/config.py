@@ -1,0 +1,54 @@
+"""Configuration settings for savey_llm service"""
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # Redis Configuration
+    REDIS_URL: str = "redis://redis:6379"
+    REDIS_CHANNEL_INPUT: str = "llm:messages:input"
+    REDIS_CHANNEL_OUTPUT: str = "llm:messages:output"
+    REDIS_HITL_PREFIX: str = "hitl:flow:"  # Prefix for HITL flow state keys
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str
+    # Main conversational agent (cheaper, faster)
+    OPENAI_MODEL_MAIN: str = "gpt-4o-mini"
+    # Vision agent for OCR and bank statement parsing (more capable)
+    OPENAI_MODEL_VISION: str = "gpt-4o"
+    OPENAI_TEMPERATURE: float = 0.7
+
+    # LLM Settings
+    MAX_TOKENS: int = 2000
+    MAX_TOKENS_VISION: int = 4000  # Higher limit for vision tasks
+    ENABLE_FUNCTION_CALLING: bool = True
+
+    # API Client Settings
+    SAVEY_API_URL: str = "http://savey_api:8000"
+    API_TIMEOUT: int = 30  # Timeout for API calls in seconds
+
+    # HITL (Human-in-the-Loop) Settings
+    HITL_FLOW_TTL: int = 3600  # TTL for HITL flows in Redis (1 hour)
+    HITL_MAX_ITERATIONS: int = 5  # Max iterations for HITL confirmation loops
+
+    # OCR Settings
+    OCR_SUPPORTED_MIME_TYPES: list[str] = [
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "application/pdf",
+    ]
+    OCR_MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB max file size
+
+    # Agent Settings
+    DEFAULT_AGENT: str = "main"  # Default agent to use
+    ENABLE_MULTI_AGENT: bool = True  # Enable multi-agent routing
+
+    # Service Settings
+    LOG_LEVEL: str = "INFO"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+
+settings = Settings()

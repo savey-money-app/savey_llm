@@ -1,0 +1,24 @@
+[project]
+name = "savey-llm"
+version = "0.1.0"
+description = "Savey LLM Service - Async message processing with LangChain"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Async messaging
+    "faststream[redis]>=0.5.0",
+    "redis>=5.0.0",
+    # LLM and AI
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    # Data validation
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.0.0",
+    # HTTP client
+    "httpx>=0.27.0",
+    # OCR and document processing
+    "pillow>=10.0.0",  # Image processing
+    "pypdf>=3.17.0",  # PDF text extraction
+    "pdf2image>=1.16.0",  # PDF to image conversion for OCR
+    "pytesseract>=0.3.10",  # OCR engine (requires tesseract system package)
+]
