@@ -29,34 +29,6 @@ services:
     restart: always
     volumes:
       - .:/app
-    environment:
-      # Redis
-      REDIS_URL: redis://redis:6379
-      REDIS_CHANNEL_INPUT: llm:messages:input
-      REDIS_CHANNEL_OUTPUT: llm:messages:output
-      REDIS_HITL_PREFIX: hitl:flow:
-      # OpenAI
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL_MAIN: gpt-4o-mini
-      OPENAI_MODEL_VISION: gpt-4o
-      OPENAI_TEMPERATURE: 0.7
-      # LLM Settings
-      MAX_TOKENS: 2000
-      MAX_TOKENS_VISION: 4000
-      ENABLE_FUNCTION_CALLING: "true"
-      # API Client
-      SAVEY_API_URL: http://savey_api:8000
-      API_TIMEOUT: 30
-      # HITL
-      HITL_FLOW_TTL: 3600
-      HITL_MAX_ITERATIONS: 5
-      # OCR
-      OCR_MAX_FILE_SIZE: 10485760
-      # Agents
-      DEFAULT_AGENT: main
-      ENABLE_MULTI_AGENT: "true"
-      # Service
-      LOG_LEVEL: INFO
     networks:
       - savey_network
     depends_on:
