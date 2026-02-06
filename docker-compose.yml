@@ -14,8 +14,6 @@ services:
       - "6380:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - savey_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -29,8 +27,6 @@ services:
     restart: always
     volumes:
       - .:/app
-    networks:
-      - savey_network
     depends_on:
       redis:
         condition: service_healthy
