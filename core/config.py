@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Service Settings
     LOG_LEVEL: str = "INFO"
 
+    DOCKER_CONFIG: str = "docker"
+    APP_NAME: str = "savey_api"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
