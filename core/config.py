@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # API Client Settings
     SAVEY_API_URL: str = "http://savey_api:8000"
     API_TIMEOUT: int = 30  # Timeout for API calls in seconds
+    INTERNAL_API_TOKEN: str = "change-me-internal-secret"
 
     # HITL (Human-in-the-Loop) Settings
     HITL_FLOW_TTL: int = 3600  # TTL for HITL flows in Redis (1 hour)

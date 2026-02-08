@@ -49,6 +49,7 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = kwargs.pop("headers", {})
         headers["X-User-ID"] = str(user_id)
+        headers["X-Internal-Token"] = settings.INTERNAL_API_TOKEN
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
