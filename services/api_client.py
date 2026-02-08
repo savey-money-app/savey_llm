@@ -55,6 +55,8 @@ class APIClient:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.request(method, url, headers=headers, **kwargs)
                 response.raise_for_status()
+                if response.status_code == 204 or not response.content:
+                    return {}
                 return response.json()
         except httpx.HTTPError as e:
             logger.error(f"API request failed to {endpoint}: {e}")
