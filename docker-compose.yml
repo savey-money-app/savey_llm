@@ -7,6 +7,8 @@ services:
     restart: always
     volumes:
       - .:/app
+    networks:
+      - dokploy-network
     deploy:
       resources:
         limits:
