@@ -138,7 +138,14 @@ class APIClient:
             params["category"] = category
 
         result = await self._make_request("GET", "/api/v1/transactions", user_id, params=params)
-        return [TransactionRead(**t) for t in result["transactions"]]
+        if isinstance(result, list):
+            transactions = result
+        elif isinstance(result, dict):
+            transactions = result.get("transactions") or result.get("items") or result.get("data") or []
+        else:
+            raise TypeError(f"Unexpected transactions response type: {type(result)}")
+
+        return [TransactionRead(**t) for t in transactions]
 
     async def delete_last_transaction(self, user_id: UUID) -> None:
         """Delete the most recently created transaction"""

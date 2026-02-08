@@ -166,8 +166,14 @@ class MCPService:
             params["category"] = category
 
         result = await self._make_request("GET", "/api/v1/transactions", user_id, params=params)
+        if isinstance(result, list):
+            raw_transactions = result
+        elif isinstance(result, dict):
+            raw_transactions = result.get("transactions") or result.get("items") or result.get("data") or []
+        else:
+            raise TypeError(f"Unexpected transactions response type: {type(result)}")
 
-        transactions = [TransactionRead(**t) for t in result["transactions"]]
+        transactions = [TransactionRead(**t) for t in raw_transactions]
         logger.info(f"✅ Found {len(transactions)} transactions")
         return transactions
 
