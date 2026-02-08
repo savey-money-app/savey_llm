@@ -82,10 +82,34 @@ class StatementParserAgent(BaseAgent):
             confidence=parsed_data.get("confidence", 0.9),
         )
 
+    # JSON schema for structured output — avoids truncated responses
+    _RESPONSE_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "statement_date": {"type": "string", "nullable": True},
+            "confidence": {"type": "number"},
+            "transactions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "date": {"type": "string"},
+                        "amount": {"type": "number"},
+                        "description": {"type": "string"},
+                        "category": {"type": "string"},
+                    },
+                    "required": ["date", "amount", "description", "category"],
+                },
+            },
+        },
+        "required": ["transactions", "confidence"],
+    }
+
     async def parse_statement(self, data: str, mime_type: str) -> ParsedStatement:
         """
         Parse a bank statement by passing the file directly to Gemini.
 
+        Uses structured output (response schema) to prevent truncated JSON.
         Supports PDFs and images natively — no OCR preprocessing.
 
         Args:
@@ -102,6 +126,8 @@ class StatementParserAgent(BaseAgent):
             temperature=self.temperature,
             google_api_key=settings.GEMINI_API_KEY,
             max_tokens=self.max_tokens,
+            response_mime_type="application/json",
+            response_schema=self._RESPONSE_SCHEMA,
         )
 
         messages = [
@@ -116,7 +142,7 @@ class StatementParserAgent(BaseAgent):
                     },
                     {
                         "type": "text",
-                        "text": "Parse this bank statement and extract all transactions in the JSON format specified in the system prompt.",
+                        "text": "Extract all transactions from this bank statement.",
                     },
                 ],
             },
@@ -126,7 +152,7 @@ class StatementParserAgent(BaseAgent):
         content = self.extract_content(response.content if hasattr(response, "content") else str(response))
 
         try:
-            parsed_data = self._parse_llm_json(content)
+            parsed_data = json.loads(content)
             parsed_statement = self._build_parsed_statement(parsed_data)
             logger.info(
                 f"✅ Parsed {len(parsed_statement.transactions)} transactions "
