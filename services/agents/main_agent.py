@@ -224,7 +224,7 @@ Response style:
                 if arguments.get("date"):
                     date = datetime.fromisoformat(arguments["date"])
 
-                balance = await self.api_client.save_transaction(
+                result = await self.api_client.save_transaction(
                     user_id=user_uuid,
                     amount=arguments["amount"],
                     category=arguments["category"],
@@ -232,7 +232,7 @@ Response style:
                     transaction_type=arguments["transaction_type"],
                     date=date,
                 )
-                return balance.model_dump()
+                return result
 
             elif tool_name == "get_user_transactions":
                 # Parse dates if provided

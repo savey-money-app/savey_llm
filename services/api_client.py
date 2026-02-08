@@ -64,6 +64,27 @@ class APIClient:
     # Transaction Management
     # ============================================================================
 
+    async def _resolve_category_id(self, user_id: UUID, category_name: str) -> str:
+        """Resolve a category name to its UUID, creating the category if it doesn't exist."""
+        categories = await self._make_request("GET", "/api/v1/categories", user_id)
+        for cat in categories:
+            if cat.get("title", "").lower() == category_name.lower():
+                return cat["id"]
+
+        # Category not found — create it
+        try:
+            new_cat = await self._make_request(
+                "POST", "/api/v1/categories", user_id, json={"title": category_name}
+            )
+            return new_cat["id"]
+        except Exception:
+            # May have been created concurrently — try fetching again
+            categories = await self._make_request("GET", "/api/v1/categories", user_id)
+            for cat in categories:
+                if cat.get("title", "").lower() == category_name.lower():
+                    return cat["id"]
+            raise
+
     async def save_transaction(
         self,
         user_id: UUID,
@@ -72,20 +93,22 @@ class APIClient:
         description: str,
         transaction_type: str,
         date: Optional[datetime] = None,
-    ) -> UserBalance:
-        """Save a new transaction and return updated user balance"""
+    ) -> Dict[str, Any]:
+        """Save a new transaction and return the created transaction"""
         logger.info(f"💰 Saving transaction for user {user_id}")
 
+        category_id = await self._resolve_category_id(user_id, category)
+
         payload = {
-            "amount": amount,
-            "category": category,
+            "amount": abs(amount),  # API expects positive amount
+            "category_id": category_id,
             "description": description,
             "transaction_type": transaction_type,
-            "date": (date or datetime.utcnow()).isoformat(),
+            "date": (date or datetime.utcnow()).date().isoformat(),
         }
 
         result = await self._make_request("POST", "/api/v1/transactions", user_id, json=payload)
-        return UserBalance(**result["balance"])
+        return result
 
     async def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> None:
         """Delete a specific transaction by ID"""
