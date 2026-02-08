@@ -73,7 +73,7 @@ class LLMService:
                     user_id=message.user_id,
                     content="📎 Please attach your bank statement (image or PDF) so I can parse it for you.",
                     tool_calls=[],
-                    model=settings.OPENAI_MODEL_MAIN,
+                    model=settings.GEMINI_MODEL_MAIN,
                     timestamp=datetime.utcnow(),
                     agent_type="router",
                 )
@@ -105,7 +105,7 @@ class LLMService:
                 user_id=message.user_id,
                 content="❌ This confirmation flow has expired or doesn't exist. Please start over.",
                 tool_calls=[],
-                model=settings.OPENAI_MODEL_MAIN,
+                model=settings.GEMINI_MODEL_MAIN,
                 timestamp=datetime.utcnow(),
                 agent_type="hitl_manager",
             )
@@ -150,7 +150,7 @@ class LLMService:
             user_id=message.user_id,
             content=content,
             tool_calls=[],
-            model=settings.OPENAI_MODEL_MAIN,
+            model=settings.GEMINI_MODEL_MAIN,
             timestamp=datetime.utcnow(),
             agent_type="hitl_manager",
         )
@@ -189,7 +189,7 @@ class LLMService:
                 user_id=message.user_id,
                 content="I apologize, but I encountered an error processing your request. Please try again.",
                 tool_calls=[],
-                model=settings.OPENAI_MODEL_MAIN,
+                model=settings.GEMINI_MODEL_MAIN,
                 timestamp=datetime.utcnow(),
                 error=str(e),
                 agent_type="error_handler",

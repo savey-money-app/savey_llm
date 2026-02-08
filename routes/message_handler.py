@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize broker and app
 broker = RedisBroker(settings.REDIS_URL)
-app = FastStream(broker, title="Savey LLM Service")
+app = FastStream(broker)
 
 # Initialize services
 llm_service = LLMService()
@@ -30,7 +30,7 @@ async def on_startup():
     logger.info(f"Redis URL: {settings.REDIS_URL}")
     logger.info(f"Input channel: {settings.REDIS_CHANNEL_INPUT}")
     logger.info(f"Output channel: {settings.REDIS_CHANNEL_OUTPUT}")
-    logger.info(f"Model: {settings.OPENAI_MODEL}")
+    logger.info(f"Model: {settings.GEMINI_MODEL_MAIN}")
 
 
 @app.on_shutdown
@@ -81,7 +81,7 @@ async def process_llm_message(message: MessageInput) -> LLMResponse:
             user_id=message.user_id,
             content="I apologize, but I encountered an error processing your request. Please try again.",
             tool_calls=[],
-            model=settings.OPENAI_MODEL,
+            model=settings.GEMINI_MODEL_MAIN,
             timestamp=message.timestamp,
             error=str(e)
         )
