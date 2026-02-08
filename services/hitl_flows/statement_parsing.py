@@ -105,7 +105,7 @@ class StatementParsingFlow:
             user_id=user_id,
             message_id=message_id,
             flow_type=HITLFlowType.STATEMENT_PARSING,
-            data=flow_data.model_dump(),
+            data=flow_data.model_dump(mode="json"),
         )
 
         # Format transaction list
@@ -187,8 +187,9 @@ Flow ID: `{flow_request.flow_id}`"""
             user_remarks=remarks,
         )
 
+        from schemas.hitl import HITLFlowState
         await self.hitl_manager.update_flow_state(
-            flow_id, flow_data=flow_data.model_dump()
+            flow_id, HITLFlowState.IN_PROGRESS, data=flow_data.model_dump(mode="json")
         )
 
         # Format updated transaction list
