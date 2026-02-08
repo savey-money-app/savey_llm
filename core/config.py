@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     API_TIMEOUT: int = 30  # Timeout for API calls in seconds
     INTERNAL_API_TOKEN: str = "change-me-internal-secret"
 
+    # File uploads (shared volume with savey_api)
+    UPLOADS_DIR: str = "/app/uploads"
+
     # HITL (Human-in-the-Loop) Settings
     HITL_FLOW_TTL: int = 3600  # TTL for HITL flows in Redis (1 hour)
     HITL_MAX_ITERATIONS: int = 5  # Max iterations for HITL confirmation loops
