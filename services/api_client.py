@@ -110,8 +110,12 @@ class APIClient:
         }
 
         result = await self._make_request("POST", "/api/v1/transactions", user_id, json=payload)
+        logger.info(f"📥 API response for save_transaction: {result}")
         balance = UserBalance(**result["balance"]) if result.get("balance") else None
-        return result.get("transaction", result), balance
+        logger.info(f"💰 Extracted balance: {balance}")
+        transaction_data = result.get("transaction", result)
+        logger.info(f"📦 Returning: transaction={transaction_data}, balance={balance}")
+        return transaction_data, balance
 
     async def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> Optional[UserBalance]:
         """Delete a specific transaction by ID and return updated balance."""
