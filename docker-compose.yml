@@ -7,7 +7,13 @@ services:
     restart: always
     volumes:
       - .:/app
+    networks:
+      - dokploy-network
     deploy:
       resources:
         limits:
           memory: 2g
+
+networks:
+  dokploy-network:
+    external: true
