@@ -5,7 +5,8 @@ These schemas define the parameters for all API functions that the LLM can call.
 Functions are hosted on the main backend server (savey_api).
 """
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
@@ -130,18 +131,29 @@ class MCCLookupTool(BaseModel):
 # ============================================================================
 
 
+class CategoryResponse(BaseModel):
+    """Schema for category response"""
+
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class TransactionRead(BaseModel):
     """Transaction read schema for API responses"""
 
     id: UUID
     user_id: UUID
-    amount: float
-    category: str
-    description: str
+    category_id: UUID
+    category: CategoryResponse
+    amount: Decimal
+    description: Optional[str] = None
     transaction_type: str
-    date: datetime
-    bank_statement_id: Optional[UUID] = None
-    mcc: Optional[str] = None
+    date: date
     created_at: datetime
     updated_at: datetime
 
