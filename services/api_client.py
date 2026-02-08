@@ -174,7 +174,7 @@ class APIClient:
         logger.info(f"📄 Creating {len(transactions)} transactions from statement")
 
         payload = {
-            "transactions": [t.model_dump() for t in transactions],
+            "transactions": [t.model_dump(mode="json") for t in transactions],
             "statement_date": (statement_date or datetime.utcnow()).isoformat(),
         }
 
