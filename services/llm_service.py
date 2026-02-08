@@ -110,9 +110,44 @@ class LLMService:
                 agent_type="hitl_manager",
             )
 
-        from schemas.hitl import HITLFlowType, HITLFlowState
+        from schemas.hitl import HITLFlowType, HITLFlowState, TransactionDeletionFlowData
 
         flow_type = HITLFlowType(flow["flow_type"])
+
+        # For transaction deletion with multiple matches, parse numeric selection from message
+        if flow_type == HITLFlowType.TRANSACTION_DELETION and action == "confirm":
+            flow_data = TransactionDeletionFlowData(**flow["data"])
+            if flow_data.selected_transaction_id is None and flow_data.matched_transactions:
+                # Try to parse a number from the message content
+                selection = None
+                for token in message.content.split():
+                    token = token.strip(".,;:!?")
+                    if token.isdigit():
+                        selection = int(token)
+                        break
+
+                if selection is not None and 1 <= selection <= len(flow_data.matched_transactions):
+                    selected = flow_data.matched_transactions[selection - 1]
+                    flow_data.selected_transaction_id = selected.id
+                    # Persist updated selection back to Redis
+                    await self.hitl_manager.update_flow_state(
+                        flow_id,
+                        HITLFlowState.PENDING,
+                        flow_data.model_dump(mode="json"),
+                    )
+                    logger.info(f"✅ Selected transaction {selected.id} from user input '{selection}'")
+                else:
+                    # Can't determine selection - ask user to clarify
+                    count = len(flow_data.matched_transactions)
+                    return LLMResponse(
+                        message_id=message.message_id,
+                        user_id=message.user_id,
+                        content=f"Please specify which transaction to delete by number (1-{min(count, 20)}), or reply 'cancel' to abort.",
+                        tool_calls=[],
+                        model=settings.GEMINI_MODEL_MAIN,
+                        timestamp=datetime.utcnow(),
+                        agent_type="hitl_manager",
+                    )
 
         # Create user response
         user_response = HITLUserResponse(

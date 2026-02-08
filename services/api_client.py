@@ -183,10 +183,12 @@ class APIClient:
     # Utility
     # ============================================================================
 
-    async def get_categories(self, user_id: UUID) -> List[str]:
-        """Get all transaction categories for the user"""
+    async def get_categories(self, user_id: UUID) -> List[Dict[str, Any]]:
+        """Get all transaction categories as [{id, title, ...}]"""
         logger.info(f"📂 Fetching categories for user {user_id}")
         result = await self._make_request("GET", "/api/v1/categories", user_id)
+        if isinstance(result, list):
+            return result
         return result.get("categories", [])
 
     async def get_balance(self, user_id: UUID) -> UserBalance:

@@ -15,6 +15,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
+from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 

@@ -54,38 +54,7 @@ class MainAgent(BaseAgent):
         return "main"
 
     def get_system_prompt(self) -> str:
-        return """You are Savey, a helpful financial assistant for a money tracking app.
-
-Your role is to help users:
-- Log transactions (both income and expenses)
-- View and search their transactions
-- Delete transactions when requested
-- Understand their spending patterns
-- Parse bank statements
-- Manage their financial data
-
-Key capabilities:
-1. **save_transaction**: Save a new transaction and return updated balance with spending limits
-2. **get_user_transactions**: Search and retrieve user transactions with filters
-3. **delete_transaction**: Delete a specific transaction by ID (use with caution)
-4. **delete_last_transaction**: Delete the most recently created transaction
-5. **delete_last_statement_transactions**: Delete all transactions from the last bank statement
-6. **mcc_lookup**: Look up Merchant Category Code information
-
-Guidelines:
-- Be friendly, concise, and helpful
-- When users want to delete transactions, search for matches first and ask for confirmation
-- When amounts are mentioned without type, infer from context (purchases/spending = expense, salary/income = income)
-- Provide clear summaries of transaction data
-- Highlight spending limits and warn if approaching or exceeding limits
-- For bank statements, defer to the statement parsing agent
-- Always confirm destructive operations (deletions)
-
-Response style:
-- Use clear, conversational language
-- Format currency amounts nicely (e.g., "$1,234.56")
-- Use bullet points for lists
-- Be proactive about offering relevant insights"""
+        return prompt_manager.get("main_agent")
 
     def _define_tools(self) -> List[Any]:
         """
@@ -299,8 +268,19 @@ Response style:
             tools = self._define_tools()
             model = self.initialize_model(tools=tools)
 
-            # Build messages
-            messages = self.build_messages(message)
+            # Fetch categories to guide the LLM in category selection
+            try:
+                categories = await self.api_client.get_categories(message.user_id)
+            except Exception:
+                categories = []
+            if categories:
+                category_lines = "\n".join(f"- {c['title']}" for c in categories)
+                category_context = f"Available transaction categories:\n{category_lines}"
+            else:
+                category_context = "No categories defined yet. You may suggest a suitable category name."
+
+            # Build messages with category context
+            messages = self.build_messages(message, additional_context=category_context)
 
             # Invoke model
             response = await model.ainvoke(messages)
