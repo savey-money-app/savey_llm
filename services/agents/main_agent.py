@@ -330,6 +330,14 @@ class MainAgent(BaseAgent):
                             hitl_data={"matches_found": deletion_response.matches_found},
                         )
 
+            # Extract balance from tool results if present
+            user_balance = None
+            for tc in executed_tools:
+                if tc.result and "balance" in tc.result:
+                    from schemas.api_tools import UserBalance
+                    user_balance = UserBalance(**tc.result["balance"])
+                    break
+
             # If we executed tools, regenerate response with results
             if executed_tools:
                 # Add tool results to context and regenerate
@@ -351,7 +359,7 @@ class MainAgent(BaseAgent):
                 tokens_used = response.response_metadata.get("token_usage", {}).get("total_tokens")
 
             return self.build_response(
-                message=message, content=content, tool_calls=executed_tools, tokens_used=tokens_used
+                message=message, content=content, tool_calls=executed_tools, tokens_used=tokens_used, balance=user_balance
             )
 
         except Exception as e:

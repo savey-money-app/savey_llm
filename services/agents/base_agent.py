@@ -164,6 +164,7 @@ class BaseAgent(ABC):
         hitl_flow_id: Optional[str] = None,
         hitl_required: bool = False,
         hitl_data: Optional[Dict[str, Any]] = None,
+        balance: Optional[Any] = None,
     ) -> LLMResponse:
         """
         Build LLM response object
@@ -177,6 +178,7 @@ class BaseAgent(ABC):
             hitl_flow_id: HITL flow ID if applicable
             hitl_required: Whether HITL is required
             hitl_data: HITL flow data
+            balance: User balance if transaction was created/deleted
 
         Returns:
             LLMResponse object
@@ -194,6 +196,7 @@ class BaseAgent(ABC):
             hitl_required=hitl_required,
             hitl_data=hitl_data,
             agent_type=self.get_agent_name(),
+            balance=balance,
         )
 
     @abstractmethod
