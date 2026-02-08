@@ -202,14 +202,9 @@ class MainAgent(BaseAgent):
                     transaction_type=arguments["transaction_type"],
                     date=date,
                 )
-                logger.info(f"💰 save_transaction returned balance: {balance}")
                 result = {"transaction": transaction, "success": True}
                 if balance:
-                    logger.info(f"✅ Adding balance to result: {balance.model_dump()}")
                     result["balance"] = balance.model_dump()
-                else:
-                    logger.warning("⚠️ No balance returned from save_transaction")
-                logger.info(f"📦 Final tool result: {result}")
                 return result
 
             elif tool_name == "get_user_transactions":
@@ -338,14 +333,10 @@ class MainAgent(BaseAgent):
             # Extract balance from tool results if present
             user_balance = None
             for tc in executed_tools:
-                logger.info(f"🔍 Checking tool {tc.name} for balance: has_result={tc.result is not None}, has_balance={'balance' in tc.result if tc.result else False}")
                 if tc.result and "balance" in tc.result:
                     from schemas.api_tools import UserBalance
-                    logger.info(f"✅ Found balance in tool result: {tc.result['balance']}")
                     user_balance = UserBalance(**tc.result["balance"])
                     break
-
-            logger.info(f"💰 Final user_balance to include in response: {user_balance}")
 
             # If we executed tools, regenerate response with results
             if executed_tools:

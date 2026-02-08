@@ -6,7 +6,7 @@ Used by agents to execute transaction and financial operations.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -101,21 +101,20 @@ class APIClient:
 
         category_id = await self._resolve_category_id(user_id, category)
 
+        # Use local date (not UTC) to match server's date.today() in calculate_user_balance
+        transaction_date = date if date else datetime.now()
+
         payload = {
             "amount": abs(amount),  # API expects positive amount
             "category_id": category_id,
             "description": description,
             "transaction_type": transaction_type,
-            "date": (date or datetime.utcnow()).date().isoformat(),
+            "date": (transaction_date.date() if isinstance(transaction_date, datetime) else transaction_date).isoformat(),
         }
 
         result = await self._make_request("POST", "/api/v1/transactions", user_id, json=payload)
-        logger.info(f"📥 API response for save_transaction: {result}")
         balance = UserBalance(**result["balance"]) if result.get("balance") else None
-        logger.info(f"💰 Extracted balance: {balance}")
-        transaction_data = result.get("transaction", result)
-        logger.info(f"📦 Returning: transaction={transaction_data}, balance={balance}")
-        return transaction_data, balance
+        return result.get("transaction", result), balance
 
     async def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> Optional[UserBalance]:
         """Delete a specific transaction by ID and return updated balance."""
