@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     DOCKER_CONFIG: str = "docker"
-    APP_NAME: str = "savey_api"
+    APP_NAME: str = "savey_llm"
 
     class Config:
         env_file = ".env"

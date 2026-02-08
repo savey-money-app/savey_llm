@@ -1,7 +1,6 @@
 """Schemas for savey_llm service"""
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
-from schemas.tools import GetTransactionsTool, CreateTransactionTool
 from schemas.api_tools import (
     SaveTransactionTool,
     DeleteTransactionTool,
@@ -38,10 +37,7 @@ __all__ = [
     "MessageInput",
     "LLMResponse",
     "ToolCall",
-    # Legacy Tools
-    "GetTransactionsTool",
-    "CreateTransactionTool",
-    # MCP Tools
+    # API Tools
     "SaveTransactionTool",
     "DeleteTransactionTool",
     "GetUserTransactionsTool",
