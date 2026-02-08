@@ -43,15 +43,19 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService):
                 response = await llm_service.process_message(message)
 
                 # Publish the full response as a single chunk
-                payload = json.dumps({
+                payload = {
                     "content": response.content,
                     "agent_type": response.agent_type,
                     "hitl_required": response.hitl_required,
                     "hitl_flow_id": response.hitl_flow_id,
                     "hitl_data": response.hitl_data,
                     "error": response.error,
-                })
-                await redis.publish(channel, payload)
+                }
+                # Include balance if present
+                if response.balance:
+                    payload["balance"] = response.balance.model_dump()
+
+                await redis.publish(channel, json.dumps(payload))
 
             except Exception as e:
                 logger.error(f"❌ Error processing job {message_id}: {e}", exc_info=True)
