@@ -36,4 +36,5 @@ Return a JSON object with:
 }
 ```
 
-Be accurate and thorough. If text is unclear, use OCR context provided.
+Be accurate and thorough. Keep descriptions concise (max 60 characters each).
+Output only the JSON object — no extra explanation or markdown outside the code block.

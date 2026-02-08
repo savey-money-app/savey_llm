@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # LLM Settings
     MAX_TOKENS: int = 2000
-    MAX_TOKENS_VISION: int = 4000  # Higher limit for vision tasks
+    MAX_TOKENS_VISION: int = 8192  # Higher limit for vision/multimodal tasks
     ENABLE_FUNCTION_CALLING: bool = True
 
     # API Client Settings
