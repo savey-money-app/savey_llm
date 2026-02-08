@@ -12,7 +12,7 @@ from uuid import UUID
 
 import httpx
 from core.config import settings
-from schemas.mcp_tools import (
+from schemas.api_tools import (
     TransactionCreateShort,
     TransactionRead,
     UserBalance,

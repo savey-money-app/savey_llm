@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from .mcp_tools import TransactionCreateShort
+from .api_tools import TransactionCreateShort
 
 
 class BankStatement(BaseModel):

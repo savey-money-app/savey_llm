@@ -321,7 +321,7 @@ Response style:
                     # This is likely a deletion request - check if we have matches
                     transactions_data = result.get("transactions", [])
                     if transactions_data:
-                        from schemas.mcp_tools import TransactionRead
+                        from schemas.api_tools import TransactionRead
 
                         transactions = [TransactionRead(**t) for t in transactions_data]
 
