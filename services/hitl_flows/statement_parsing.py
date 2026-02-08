@@ -255,7 +255,7 @@ Flow ID: `{flow_id}`"""
 
         # Create transactions via bulk API
         try:
-            result = await self.api_client.create_transactions_from_statement(
+            result, balance = await self.api_client.create_transactions_from_statement(
                 user_id=user_id,
                 transactions=flow_data.transactions,
                 statement_date=flow_data.statement_date,
@@ -268,9 +268,17 @@ Flow ID: `{flow_id}`"""
 
 Created **{created_count} transactions** from your statement.
 
-Statement ID: `{statement_id}`
+Statement ID: `{statement_id}`"""
 
-Your balance and transaction history have been updated."""
+            if balance:
+                message += f"""
+
+**Updated Balance:**
+- Balance: ${balance.balance:.2f}
+- Monthly spending: ${balance.monthly_spending:.2f}
+- Daily spending: ${balance.daily_spending:.2f}"""
+            else:
+                message += "\n\nYour balance and transaction history have been updated."
 
             # Clean up flow
             await self.hitl_manager.delete_flow(flow_id)

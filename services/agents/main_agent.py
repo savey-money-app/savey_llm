@@ -194,7 +194,7 @@ class MainAgent(BaseAgent):
                 if arguments.get("date"):
                     date = datetime.fromisoformat(arguments["date"])
 
-                result = await self.api_client.save_transaction(
+                transaction, balance = await self.api_client.save_transaction(
                     user_id=user_uuid,
                     amount=arguments["amount"],
                     category=arguments["category"],
@@ -202,6 +202,9 @@ class MainAgent(BaseAgent):
                     transaction_type=arguments["transaction_type"],
                     date=date,
                 )
+                result = {"transaction": transaction, "success": True}
+                if balance:
+                    result["balance"] = balance.model_dump()
                 return result
 
             elif tool_name == "get_user_transactions":
@@ -225,8 +228,11 @@ class MainAgent(BaseAgent):
 
             elif tool_name == "delete_transaction":
                 transaction_id = UUID(arguments["transaction_id"])
-                await self.api_client.delete_transaction(user_uuid, transaction_id)
-                return {"success": True, "message": "Transaction deleted successfully"}
+                balance = await self.api_client.delete_transaction(user_uuid, transaction_id)
+                result = {"success": True, "message": "Transaction deleted successfully"}
+                if balance:
+                    result["balance"] = balance.model_dump()
+                return result
 
             elif tool_name == "delete_last_transaction":
                 await self.api_client.delete_last_transaction(user_uuid)

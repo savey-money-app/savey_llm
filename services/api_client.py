@@ -95,8 +95,8 @@ class APIClient:
         description: str,
         transaction_type: str,
         date: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
-        """Save a new transaction and return the created transaction"""
+    ) -> tuple[Dict[str, Any], Optional[UserBalance]]:
+        """Save a new transaction and return (transaction_data, balance)."""
         logger.info(f"💰 Saving transaction for user {user_id}")
 
         category_id = await self._resolve_category_id(user_id, category)
@@ -110,12 +110,14 @@ class APIClient:
         }
 
         result = await self._make_request("POST", "/api/v1/transactions", user_id, json=payload)
-        return result
+        balance = UserBalance(**result["balance"]) if result.get("balance") else None
+        return result.get("transaction", result), balance
 
-    async def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> None:
-        """Delete a specific transaction by ID"""
+    async def delete_transaction(self, user_id: UUID, transaction_id: UUID) -> Optional[UserBalance]:
+        """Delete a specific transaction by ID and return updated balance."""
         logger.info(f"🗑️ Deleting transaction {transaction_id}")
-        await self._make_request("DELETE", f"/api/v1/transactions/{transaction_id}", user_id)
+        result = await self._make_request("DELETE", f"/api/v1/transactions/{transaction_id}", user_id)
+        return UserBalance(**result["balance"]) if result.get("balance") else None
 
     async def get_user_transactions(
         self,
@@ -169,8 +171,8 @@ class APIClient:
         user_id: UUID,
         transactions: List[TransactionCreateShort],
         statement_date: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
-        """Create multiple transactions from a parsed bank statement (bulk operation)"""
+    ) -> tuple[Dict[str, Any], Optional[UserBalance]]:
+        """Create multiple transactions from a parsed bank statement and return (result, balance)."""
         logger.info(f"📄 Creating {len(transactions)} transactions from statement")
 
         payload = {
@@ -179,7 +181,8 @@ class APIClient:
         }
 
         result = await self._make_request("POST", "/api/v1/transactions/bulk", user_id, json=payload)
-        return result
+        balance = UserBalance(**result["balance"]) if result.get("balance") else None
+        return result, balance
 
     # ============================================================================
     # Utility

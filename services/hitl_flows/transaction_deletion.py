@@ -151,7 +151,7 @@ Flow ID: `{flow_request.flow_id}`"""
 
         # Delete the transaction
         try:
-            await self.api_client.delete_transaction(user_id, flow_data.selected_transaction_id)
+            balance = await self.api_client.delete_transaction(user_id, flow_data.selected_transaction_id)
 
             # Find the deleted transaction to show details
             deleted = next(
@@ -169,6 +169,9 @@ Flow ID: `{flow_request.flow_id}`"""
 - Date: {deleted.date.strftime('%Y-%m-%d %H:%M')}"""
             else:
                 message = "✅ Transaction deleted successfully!"
+
+            if balance:
+                message += f"\n\n**Updated Balance:** ${balance.balance:.2f}"
 
             # Clean up flow
             await self.hitl_manager.delete_flow(flow_id)
