@@ -33,6 +33,7 @@ from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
+from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 

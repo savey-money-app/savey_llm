@@ -22,6 +22,7 @@ from services.hitl_flows.statement_parsing import StatementParsingFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
 from services.ocr_service import OCRService
+from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 
