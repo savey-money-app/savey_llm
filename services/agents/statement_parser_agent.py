@@ -138,7 +138,7 @@ Be accurate and thorough. If text is unclear, use OCR context provided."""
 
         # Parse JSON response
         try:
-            content = response.content if hasattr(response, "content") else str(response)
+            content = self.extract_content(response.content if hasattr(response, "content") else str(response))
 
             # Extract JSON from markdown code blocks if present
             if "```json" in content:
@@ -233,7 +233,7 @@ Extract all transactions in the JSON format specified in the system prompt."""
         ]
 
         response = await model.ainvoke(messages)
-        content = response.content if hasattr(response, "content") else str(response)
+        content = self.extract_content(response.content if hasattr(response, "content") else str(response))
 
         # Parse JSON (same logic as vision parsing)
         if "```json" in content:

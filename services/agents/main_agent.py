@@ -306,7 +306,7 @@ Response style:
             response = await model.ainvoke(messages)
 
             # Extract content and tool calls
-            content = response.content if hasattr(response, "content") else ""
+            content = self.extract_content(response.content if hasattr(response, "content") else "")
             tool_calls = self.extract_tool_calls(response)
 
             # Execute tool calls if any
@@ -356,7 +356,7 @@ Response style:
                 ]
 
                 final_response = await model.ainvoke(final_messages)
-                content = final_response.content if hasattr(final_response, "content") else content
+                content = self.extract_content(final_response.content if hasattr(final_response, "content") else content)
 
             # Calculate token usage (approximate)
             tokens_used = None

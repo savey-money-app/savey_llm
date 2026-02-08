@@ -56,6 +56,23 @@ class BaseAgent(ABC):
         """
         pass
 
+    @staticmethod
+    def extract_content(raw_content: Any) -> str:
+        """
+        Extract plain text from a Gemini response content field.
+
+        Gemini may return a list of parts: [{'type': 'text', 'text': '...'}, ...]
+        or a plain string.
+        """
+        if isinstance(raw_content, str):
+            return raw_content
+        if isinstance(raw_content, list):
+            return "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in raw_content
+            )
+        return str(raw_content) if raw_content is not None else ""
+
     def initialize_model(self, tools: Optional[List[Any]] = None) -> ChatGoogleGenerativeAI:
         """
         Initialize the ChatGoogleGenerativeAI model
