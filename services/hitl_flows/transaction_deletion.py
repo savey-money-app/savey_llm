@@ -72,14 +72,14 @@ class TransactionDeletionFlow:
                 user_id=user_id,
                 message_id=message_id,
                 flow_type=HITLFlowType.TRANSACTION_DELETION,
-                data=flow_data.model_dump(),
+                data=flow_data.model_dump(mode="json"),
             )
 
             message = f"""✅ Found 1 matching transaction:
 
 **Transaction Details:**
 - Amount: ${abs(transaction.amount):.2f} ({transaction.transaction_type})
-- Category: {transaction.category}
+- Category: {transaction.category.title}
 - Description: {transaction.description}
 - Date: {transaction.date.strftime('%Y-%m-%d %H:%M')}
 
@@ -103,14 +103,14 @@ Flow ID: `{flow_request.flow_id}`"""
             user_id=user_id,
             message_id=message_id,
             flow_type=HITLFlowType.TRANSACTION_DELETION,
-            data=flow_data.model_dump(),
+            data=flow_data.model_dump(mode="json"),
         )
 
         # Format transaction list for user
         transaction_list = []
         for i, t in enumerate(matched_transactions[:20], 1):  # Limit to 20
             transaction_list.append(
-                f"{i}. **${abs(t.amount):.2f}** - {t.category} - {t.description} ({t.date.strftime('%Y-%m-%d')})"
+                f"{i}. **${abs(t.amount):.2f}** - {t.category.title} - {t.description} ({t.date.strftime('%Y-%m-%d')})"
             )
 
         message = f"""🔍 Found {len(matched_transactions)} matching transactions:
@@ -164,7 +164,7 @@ Flow ID: `{flow_request.flow_id}`"""
 
 **Deleted:**
 - Amount: ${abs(deleted.amount):.2f} ({deleted.transaction_type})
-- Category: {deleted.category}
+- Category: {deleted.category.title}
 - Description: {deleted.description}
 - Date: {deleted.date.strftime('%Y-%m-%d %H:%M')}"""
             else:
