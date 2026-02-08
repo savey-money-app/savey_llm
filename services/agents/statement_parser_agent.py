@@ -12,7 +12,7 @@ from typing import Optional
 
 from core.config import settings
 from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.bank_statement import ParsedStatement, StatementParsingResponse
 from schemas.api_tools import TransactionCreateShort
 from schemas.message import MessageInput
@@ -31,7 +31,7 @@ class StatementParserAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(
-            model_name=settings.OPENAI_MODEL_VISION,
+            model_name=settings.GEMINI_MODEL_VISION,
             temperature=0.3,  # Lower temperature for more deterministic parsing
             max_tokens=settings.MAX_TOKENS_VISION,
         )
@@ -121,10 +121,10 @@ Be accurate and thorough. If text is unclear, use OCR context provided."""
             )
 
         # Initialize vision model (without tools)
-        vision_model = ChatOpenAI(
+        vision_model = ChatGoogleGenerativeAI(
             model=self.model_name,
             temperature=self.temperature,
-            openai_api_key=settings.OPENAI_API_KEY,
+            google_api_key=settings.GEMINI_API_KEY,
             max_tokens=self.max_tokens,
         )
 

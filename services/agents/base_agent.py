@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
 
@@ -27,14 +27,14 @@ class BaseAgent(ABC):
         Initialize base agent
 
         Args:
-            model_name: OpenAI model name
+            model_name: Gemini model name
             temperature: Model temperature
             max_tokens: Maximum tokens per response
         """
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.model: Optional[ChatOpenAI] = None
+        self.model: Optional[ChatGoogleGenerativeAI] = None
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -56,22 +56,22 @@ class BaseAgent(ABC):
         """
         pass
 
-    def initialize_model(self, tools: Optional[List[Any]] = None) -> ChatOpenAI:
+    def initialize_model(self, tools: Optional[List[Any]] = None) -> ChatGoogleGenerativeAI:
         """
-        Initialize the ChatOpenAI model
+        Initialize the ChatGoogleGenerativeAI model
 
         Args:
             tools: Optional list of tools to bind to the model
 
         Returns:
-            Initialized ChatOpenAI model
+            Initialized ChatGoogleGenerativeAI model
         """
         from core.config import settings
 
-        model = ChatOpenAI(
+        model = ChatGoogleGenerativeAI(
             model=self.model_name,
             temperature=self.temperature,
-            openai_api_key=settings.OPENAI_API_KEY,
+            google_api_key=settings.GEMINI_API_KEY,
             max_tokens=self.max_tokens,
         )
 

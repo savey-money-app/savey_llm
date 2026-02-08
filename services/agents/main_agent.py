@@ -42,8 +42,8 @@ class MainAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(
-            model_name=settings.OPENAI_MODEL_MAIN,
-            temperature=settings.OPENAI_TEMPERATURE,
+            model_name=settings.GEMINI_MODEL_MAIN,
+            temperature=settings.GEMINI_TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
         )
         self.api_client = APIClient()

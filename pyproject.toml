@@ -10,7 +10,7 @@ dependencies = [
     "redis>=5.0.0",
     # LLM and AI
     "langchain>=0.3.0",
-    "langchain-openai>=0.2.0",
+    "langchain-google-genai>=2.0.0",
     # Data validation
     "pydantic>=2.12.5",
     "pydantic-settings>=2.0.0",

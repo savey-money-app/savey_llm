@@ -9,13 +9,13 @@ class Settings(BaseSettings):
     REDIS_CHANNEL_OUTPUT: str = "llm:messages:output"
     REDIS_HITL_PREFIX: str = "hitl:flow:"  # Prefix for HITL flow state keys
 
-    # OpenAI Configuration
-    OPENAI_API_KEY: str
-    # Main conversational agent (cheaper, faster)
-    OPENAI_MODEL_MAIN: str = "gpt-4o-mini"
-    # Vision agent for OCR and bank statement parsing (more capable)
-    OPENAI_MODEL_VISION: str = "gpt-4o"
-    OPENAI_TEMPERATURE: float = 0.7
+    # Google Gemini Configuration
+    GEMINI_API_KEY: str
+    # Main conversational agent (1M context, multimodal)
+    GEMINI_MODEL_MAIN: str = "gemini-3-flash-preview"
+    # Vision agent - same model (Gemini 2.0 Flash is natively multimodal)
+    GEMINI_MODEL_VISION: str = "gemini-3-flash-preview"
+    GEMINI_TEMPERATURE: float = 0.7
 
     # LLM Settings
     MAX_TOKENS: int = 2000
