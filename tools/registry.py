@@ -6,6 +6,7 @@ from uuid import UUID
 
 from services.api_client import APIClient
 from tools.base import BaseTool
+from tools.currency_tool import CurrencyConverterTool
 from tools.mcc_tool import MccLookupTool
 from tools.transaction_tools import (
     DeleteLastStatementTransactionsTool,
@@ -42,6 +43,7 @@ class ToolRegistry:
             DeleteLastTransactionTool,
             DeleteLastStatementTransactionsTool,
             MccLookupTool,
+            CurrencyConverterTool,
         ]
         for cls in tool_classes:
             tool = cls(api_client)

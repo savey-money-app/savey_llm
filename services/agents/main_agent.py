@@ -88,8 +88,20 @@ class MainAgent(BaseAgent):
             else:
                 category_context = "No categories defined yet. You may suggest a suitable category name."
 
-            # Build messages with category context
-            messages = self.build_messages(message, additional_context=category_context)
+            # Extract user profile from message context
+            ctx = message.user_metadata or {}
+            user_currency = ctx.get("user_currency", "USD")
+            user_fullname = ctx.get("user_fullname", "User")
+
+            # Combine all additional context for the LLM
+            additional_context = (
+                f"User name: {user_fullname}\n"
+                f"User currency: {user_currency}\n\n"
+                f"{category_context}"
+            )
+
+            # Build messages with additional context
+            messages = self.build_messages(message, additional_context=additional_context)
 
             # Invoke model
             response = await model.ainvoke(messages)

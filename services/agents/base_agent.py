@@ -115,8 +115,8 @@ class BaseAgent(ABC):
         messages = [SystemMessage(content=self.get_system_prompt())]
 
         # Add conversation history if available
-        if message.context and "conversation_history" in message.context:
-            for msg in message.context["conversation_history"]:
+        if message.user_metadata and "conversation_history" in message.user_metadata:
+            for msg in message.user_metadata["conversation_history"]:
                 if msg.get("role") == "user":
                     messages.append(HumanMessage(content=msg.get("content", "")))
                 # Add more message types as needed

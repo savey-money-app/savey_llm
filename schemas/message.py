@@ -21,7 +21,7 @@ class MessageInput(BaseModel):
     message_id: str = Field(..., description="Unique message identifier")
     content: str = Field(..., description="Message text content")
     timestamp: datetime = Field(..., description="Message timestamp")
-    context: Optional[Dict[str, Any]] = Field(None, description="Additional context (conversation history, etc.)")
+    user_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional context (conversation history, etc.)")
     attachments: Optional[List[MessageAttachment]] = Field(
         None, description="Optional file attachments (bank statements, receipts)"
     )
