@@ -11,8 +11,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
 from services.prompt_manager import prompt_manager
@@ -28,14 +28,14 @@ class BaseAgent(ABC):
         Initialize base agent
 
         Args:
-            model_name: Gemini model name
+            model_name: LLM model name (resolved via model factory)
             temperature: Model temperature
             max_tokens: Maximum tokens per response
         """
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.model: Optional[ChatGoogleGenerativeAI] = None
+        self.model: Optional[BaseChatModel] = None
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -74,30 +74,25 @@ class BaseAgent(ABC):
             )
         return str(raw_content) if raw_content is not None else ""
 
-    def initialize_model(self, tools: Optional[List[Any]] = None) -> ChatGoogleGenerativeAI:
+    def initialize_model(self, tools: Optional[List[Any]] = None) -> BaseChatModel:
         """
-        Initialize the ChatGoogleGenerativeAI model
+        Initialize the chat model via the provider-agnostic factory.
 
         Args:
             tools: Optional list of tools to bind to the model
 
         Returns:
-            Initialized ChatGoogleGenerativeAI model
+            Initialized BaseChatModel instance
         """
-        from core.config import settings
+        from services.model_factory import create_chat_model
 
-        model = ChatGoogleGenerativeAI(
-            model=self.model_name,
+        self.model = create_chat_model(
+            model_name=self.model_name,
             temperature=self.temperature,
-            google_api_key=settings.GEMINI_API_KEY,
             max_tokens=self.max_tokens,
+            tools=tools,
         )
-
-        if tools:
-            model = model.bind_tools(tools)
-
-        self.model = model
-        return model
+        return self.model
 
     def build_messages(
         self, message: MessageInput, additional_context: Optional[str] = None

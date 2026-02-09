@@ -10,6 +10,7 @@ import redis.asyncio as aioredis
 from core.config import settings
 from schemas.message import MessageInput
 from services.llm_service import LLMService
+from services.model_factory import get_model_name
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
@@ -78,7 +79,7 @@ async def main():
 
     logger.info("🚀 Starting Savey LLM Worker...")
     logger.info(f"Redis: {settings.REDIS_URL}")
-    logger.info(f"Model: {settings.GEMINI_MODEL_MAIN}")
+    logger.info(f"Provider: {settings.LLM_PROVIDER}, Model: {get_model_name('main')}")
 
     redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     llm_service = LLMService()

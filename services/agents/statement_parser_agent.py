@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Optional
 
 from core.config import settings
-from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.bank_statement import ParsedStatement, StatementParsingResponse
 from schemas.api_tools import TransactionCreateShort
 from schemas.message import MessageInput
@@ -20,6 +19,7 @@ from services.agents.base_agent import BaseAgent
 from services.hitl_flows.statement_parsing import StatementParsingFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
+from services.model_factory import create_structured_model, format_multimodal_content, get_model_name
 from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class StatementParserAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(
-            model_name=settings.GEMINI_MODEL_VISION,
+            model_name=get_model_name("vision"),
             temperature=0.3,
             max_tokens=settings.MAX_TOKENS_VISION,
         )
@@ -119,32 +119,22 @@ class StatementParserAgent(BaseAgent):
         Returns:
             ParsedStatement with extracted transactions
         """
-        logger.info(f"📄 Parsing bank statement via Gemini multimodal ({mime_type})")
+        logger.info(f"📄 Parsing bank statement via {settings.LLM_PROVIDER} multimodal ({mime_type})")
 
-        model = ChatGoogleGenerativeAI(
-            model=self.model_name,
-            temperature=self.temperature,
-            google_api_key=settings.GEMINI_API_KEY,
-            max_tokens=self.max_tokens,
-            response_mime_type="application/json",
+        model = create_structured_model(
             response_schema=self._RESPONSE_SCHEMA,
+            model_name=self.model_name,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
         )
 
         messages = [
             {"role": "system", "content": self.get_system_prompt()},
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "media",
-                        "mime_type": mime_type,
-                        "data": data,
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all transactions from this bank statement.",
-                    },
-                ],
+                "content": format_multimodal_content(
+                    data, mime_type, "Extract all transactions from this bank statement."
+                ),
             },
         ]
 

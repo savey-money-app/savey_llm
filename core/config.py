@@ -9,15 +9,21 @@ class Settings(BaseSettings):
     REDIS_CHANNEL_OUTPUT: str = "llm:messages:output"
     REDIS_HITL_PREFIX: str = "hitl:flow:"  # Prefix for HITL flow state keys
 
-    # Google Gemini Configuration
-    GEMINI_API_KEY: str
-    # Main conversational agent (1M context, multimodal)
-    GEMINI_MODEL_MAIN: str = "gemini-3-flash-preview"
-    # Vision agent - same model (Gemini 2.0 Flash is natively multimodal)
-    GEMINI_MODEL_VISION: str = "gemini-3-flash-preview"
-    GEMINI_TEMPERATURE: float = 0.7
+    # LLM Provider: "gemini" or "openai"
+    LLM_PROVIDER: str = "gemini"
 
-    # LLM Settings
+    # Google Gemini Configuration
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_MAIN: str = "gemini-3-flash-preview"
+    GEMINI_MODEL_VISION: str = "gemini-3-flash-preview"
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL_MAIN: str = "gpt-4o-mini"
+    OPENAI_MODEL_VISION: str = "gpt-4o"
+
+    # General LLM Settings
+    LLM_TEMPERATURE: float = 0.7
     MAX_TOKENS: int = 2000
     MAX_TOKENS_VISION: int = 8192  # Higher limit for vision/multimodal tasks
     ENABLE_FUNCTION_CALLING: bool = True

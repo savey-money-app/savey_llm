@@ -23,6 +23,7 @@ from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
+from services.model_factory import get_model_name
 from services.prompt_manager import prompt_manager
 from tools.registry import ToolRegistry
 
@@ -34,8 +35,8 @@ class MainAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(
-            model_name=settings.GEMINI_MODEL_MAIN,
-            temperature=settings.GEMINI_TEMPERATURE,
+            model_name=get_model_name("main"),
+            temperature=settings.LLM_TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
         )
         self.api_client = APIClient()

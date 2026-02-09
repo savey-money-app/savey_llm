@@ -14,7 +14,6 @@ import logging
 from datetime import datetime
 
 from core.config import settings
-from langchain_google_genai import ChatGoogleGenerativeAI
 from schemas.api_tools import TransactionCreateShort
 from schemas.hitl import (
     HITLFlowState,
@@ -30,6 +29,7 @@ from services.hitl_flows.statement_parsing import StatementParsingFlow
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
+from services.model_factory import create_structured_model, get_model_name
 from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ class LLMService:
                     user_id=message.user_id,
                     content="📎 Please attach your bank statement (image or PDF) so I can parse it for you.",
                     tool_calls=[],
-                    model=settings.GEMINI_MODEL_MAIN,
+                    model=get_model_name("main"),
                     timestamp=datetime.utcnow(),
                     agent_type="router",
                 )
@@ -132,8 +132,19 @@ class LLMService:
     # HITL resolution via LLM
     # ------------------------------------------------------------------
 
-    def _build_flow_context(self, flow_type: HITLFlowType, flow_data: dict) -> str:
+    def _build_flow_context(
+        self,
+        flow_type: HITLFlowType,
+        flow_data: dict,
+        user_currency: str = "USD",
+        user_fullname: str = "User",
+    ) -> str:
         """Build a human-readable context string describing the HITL flow."""
+        header = [
+            f"User name: {user_fullname}",
+            f"User currency: {user_currency}",
+            "",
+        ]
 
         if flow_type == HITLFlowType.TRANSACTION_DELETION:
             data = TransactionDeletionFlowData(**flow_data)
@@ -143,10 +154,10 @@ class LLMService:
             lines.append(f"Number of candidate transactions: {len(data.matched_transactions)}")
             for i, t in enumerate(data.matched_transactions[:20], 1):
                 lines.append(
-                    f"  {i}. {abs(t.amount):.2f} ({t.transaction_type}) "
+                    f"  {i}. {abs(t.amount):.2f} {user_currency} ({t.transaction_type}) "
                     f"- {t.category.title} - {t.description} ({t.date})"
                 )
-            return "\n".join(lines)
+            return "\n".join(header + lines)
 
         elif flow_type == HITLFlowType.STATEMENT_PARSING:
             data = StatementParsingFlowData(**flow_data)
@@ -155,14 +166,19 @@ class LLMService:
             lines.append(f"Iteration: {data.iteration}")
             for i, t in enumerate(data.transactions, 1):
                 lines.append(
-                    f"  {i}. {t.date} | {t.amount:+.2f} | {t.category} | {t.description}"
+                    f"  {i}. {t.date} | {t.amount:+.2f} {user_currency} | {t.category} | {t.description}"
                 )
-            return "\n".join(lines)
+            return "\n".join(header + lines)
 
-        return f"Flow type: {flow_type.value}\nData: {json.dumps(flow_data, default=str)}"
+        return "\n".join(header) + f"\nFlow type: {flow_type.value}\nData: {json.dumps(flow_data, default=str)}"
 
     async def _resolve_hitl_action(
-        self, flow_type: HITLFlowType, flow_data: dict, user_message: str
+        self,
+        flow_type: HITLFlowType,
+        flow_data: dict,
+        user_message: str,
+        user_currency: str = "USD",
+        user_fullname: str = "User",
     ) -> dict:
         """
         Call the LLM with structured output to infer the user's HITL action.
@@ -171,7 +187,9 @@ class LLMService:
             Parsed JSON dict with 'action', 'user_message', and optional fields.
         """
         system_prompt = prompt_manager.get("hitl_resolver")
-        flow_context = self._build_flow_context(flow_type, flow_data)
+        flow_context = self._build_flow_context(
+            flow_type, flow_data, user_currency=user_currency, user_fullname=user_fullname
+        )
 
         # Pick the right JSON schema based on flow type
         if flow_type == HITLFlowType.TRANSACTION_DELETION:
@@ -179,13 +197,10 @@ class LLMService:
         else:
             response_schema = _STATEMENT_RESPONSE_SCHEMA
 
-        model = ChatGoogleGenerativeAI(
-            model=settings.GEMINI_MODEL_MAIN,
-            temperature=0.3,
-            google_api_key=settings.GEMINI_API_KEY,
-            max_tokens=settings.MAX_TOKENS,
-            response_mime_type="application/json",
+        model = create_structured_model(
             response_schema=response_schema,
+            temperature=0.3,
+            max_tokens=settings.MAX_TOKENS,
         )
 
         messages = [
@@ -224,7 +239,7 @@ class LLMService:
                 user_id=message.user_id,
                 content="❌ This confirmation flow has expired or doesn't exist. Please start over.",
                 tool_calls=[],
-                model=settings.GEMINI_MODEL_MAIN,
+                model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
                 agent_type="hitl_manager",
             )
@@ -239,14 +254,25 @@ class LLMService:
                 user_id=message.user_id,
                 content=f"This flow has already been {current_state.value}.",
                 tool_calls=[],
-                model=settings.GEMINI_MODEL_MAIN,
+                model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
                 agent_type="hitl_manager",
             )
 
+        # Extract user profile from message context
+        ctx = message.user_metadata or {}
+        user_currency = ctx.get("user_currency", "USD")
+        user_fullname = ctx.get("user_fullname", "User")
+
         # 2. Ask the LLM to interpret the user's reply
         try:
-            decision = await self._resolve_hitl_action(flow_type, flow["data"], message.content)
+            decision = await self._resolve_hitl_action(
+                flow_type,
+                flow["data"],
+                message.content,
+                user_currency=user_currency,
+                user_fullname=user_fullname,
+            )
         except Exception as e:
             logger.error(f"❌ HITL resolver LLM call failed: {e}")
             return LLMResponse(
@@ -254,7 +280,7 @@ class LLMService:
                 user_id=message.user_id,
                 content="I couldn't understand your response. Please reply with 'confirm', 'cancel', or describe your changes.",
                 tool_calls=[],
-                model=settings.GEMINI_MODEL_MAIN,
+                model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
                 agent_type="hitl_manager",
             )
@@ -344,7 +370,7 @@ class LLMService:
                         user_id=message.user_id,
                         content=presentation.message,
                         tool_calls=[],
-                        model=settings.GEMINI_MODEL_MAIN,
+                        model=get_model_name("main"),
                         timestamp=datetime.utcnow(),
                         agent_type="hitl_manager",
                         hitl_flow_id=flow_id,
@@ -361,7 +387,7 @@ class LLMService:
             user_id=message.user_id,
             content=content,
             tool_calls=[],
-            model=settings.GEMINI_MODEL_MAIN,
+            model=get_model_name("main"),
             timestamp=datetime.utcnow(),
             agent_type="hitl_manager",
         )
@@ -400,7 +426,7 @@ class LLMService:
                 user_id=message.user_id,
                 content="I apologize, but I encountered an error processing your request. Please try again.",
                 tool_calls=[],
-                model=settings.GEMINI_MODEL_MAIN,
+                model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
                 error=str(e),
                 agent_type="error_handler",

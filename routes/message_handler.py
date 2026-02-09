@@ -5,6 +5,7 @@ from core.config import settings
 from schemas.message import MessageInput
 from schemas.response import LLMResponse
 from services.llm_service import LLMService
+from services.model_factory import get_model_name
 import logging
 import json
 
@@ -30,7 +31,7 @@ async def on_startup():
     logger.info(f"Redis URL: {settings.REDIS_URL}")
     logger.info(f"Input channel: {settings.REDIS_CHANNEL_INPUT}")
     logger.info(f"Output channel: {settings.REDIS_CHANNEL_OUTPUT}")
-    logger.info(f"Model: {settings.GEMINI_MODEL_MAIN}")
+    logger.info(f"Provider: {settings.LLM_PROVIDER}, Model: {get_model_name('main')}")
 
 
 @app.on_shutdown
@@ -81,7 +82,7 @@ async def process_llm_message(message: MessageInput) -> LLMResponse:
             user_id=message.user_id,
             content="I apologize, but I encountered an error processing your request. Please try again.",
             tool_calls=[],
-            model=settings.GEMINI_MODEL_MAIN,
+            model=get_model_name("main"),
             timestamp=message.timestamp,
             error=str(e)
         )
