@@ -1,14 +1,13 @@
 """
 Main Conversational Agent
 
-Handles general user interactions with access to all 7 MCP tools:
+Handles general user interactions with access to all tools:
 1. save_transaction - Save new transaction and return UserBalance
 2. delete_transaction - Delete specific transaction by ID
 3. get_user_transactions - Get user transactions with filters
 4. delete_last_transaction - Delete most recent transaction
 5. delete_last_statement_transactions - Delete last statement transactions
-6. create_transactions_from_statement - Bulk create from statement
-7. mcc_lookup - Lookup Merchant Category Code
+6. mcc_lookup - Lookup Merchant Category Code
 
 Also initiates HITL flows when needed for transaction deletion.
 """
@@ -18,28 +17,20 @@ from typing import Any, Dict, List
 
 from core.config import settings
 from langchain_core.messages import HumanMessage
-from langchain_core.tools import tool
 from schemas.message import MessageInput
-from schemas.api_tools import (
-    DeleteLastStatementTransactionsTool,
-    DeleteLastTransactionTool,
-    DeleteTransactionTool,
-    GetUserTransactionsTool,
-    MCCLookupTool,
-    SaveTransactionTool,
-)
 from schemas.response import LLMResponse, ToolCall
 from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
 from services.prompt_manager import prompt_manager
+from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
 
 class MainAgent(BaseAgent):
-    """Main conversational agent with all MCP tools"""
+    """Main conversational agent with all tools"""
 
     def __init__(self):
         super().__init__(
@@ -50,6 +41,7 @@ class MainAgent(BaseAgent):
         self.api_client = APIClient()
         self.hitl_manager = HITLManager()
         self.deletion_flow = TransactionDeletionFlow(self.hitl_manager, self.api_client)
+        self.tool_registry = ToolRegistry(self.api_client)
 
     def get_agent_name(self) -> str:
         return "main"
@@ -58,205 +50,15 @@ class MainAgent(BaseAgent):
         return prompt_manager.get("main_agent")
 
     def _define_tools(self) -> List[Any]:
-        """
-        Define all MCP tools for the main agent
-
-        Returns:
-            List of LangChain tool definitions
-        """
-
-        @tool
-        def save_transaction(
-            amount: float,
-            category: str,
-            description: str,
-            transaction_type: str,
-            date: str = None,
-        ) -> Dict[str, Any]:
-            """Save a new transaction and return updated user balance with spending limits.
-
-            Args:
-                amount: Transaction amount (positive for income, negative for expense)
-                category: Transaction category (e.g., 'Food', 'Transport', 'Salary')
-                description: Description of the transaction
-                transaction_type: Type of transaction - either 'income' or 'expense'
-                date: Optional transaction date in ISO format (defaults to now)
-
-            Returns:
-                UserBalance with balance, monthly_spending, monthly_limit, daily_spending, daily_limit
-            """
-            # This will be replaced with actual implementation at runtime
-            pass
-
-        @tool
-        def get_user_transactions(
-            limit: int = 20,
-            transaction_type: str = None,
-            start_date: str = None,
-            end_date: str = None,
-            category: str = None,
-        ) -> List[Dict[str, Any]]:
-            """Get user's recent transactions with optional filters.
-
-            Args:
-                limit: Maximum number of transactions to return (default: 20)
-                transaction_type: Filter by 'income' or 'expense'
-                start_date: Filter transactions after this date (ISO format)
-                end_date: Filter transactions before this date (ISO format)
-                category: Filter by category name
-
-            Returns:
-                List of transactions with id, amount, category, description, date, etc.
-            """
-            pass
-
-        @tool
-        def delete_transaction(transaction_id: str) -> str:
-            """Delete a specific transaction by its ID.
-
-            IMPORTANT: This should only be called after the user has confirmed which
-            transaction to delete via HITL flow. Do not call this directly based on
-            user description - use get_user_transactions first to find matches.
-
-            Args:
-                transaction_id: UUID of the transaction to delete
-
-            Returns:
-                Success message
-            """
-            pass
-
-        @tool
-        def delete_last_transaction() -> str:
-            """Delete the most recently created transaction for the user.
-
-            Use this when user says something like "delete my last transaction"
-            or "undo my last entry".
-
-            Returns:
-                Success message
-            """
-            pass
-
-        @tool
-        def delete_last_statement_transactions() -> Dict[str, Any]:
-            """Delete all transactions created from the last bank statement upload.
-
-            Use this when user wants to undo a bank statement import.
-
-            Returns:
-                Dict with deleted_count
-            """
-            pass
-
-        @tool
-        def mcc_lookup(mcc_code: str) -> Dict[str, Any]:
-            """Look up information about a Merchant Category Code (MCC).
-
-            Args:
-                mcc_code: 4-digit MCC code to lookup
-
-            Returns:
-                Dict with code, description, and category information
-            """
-            pass
-
-        return [
-            save_transaction,
-            get_user_transactions,
-            delete_transaction,
-            delete_last_transaction,
-            delete_last_statement_transactions,
-            mcc_lookup,
-        ]
+        """Return LangChain tool definitions from the tool registry."""
+        return self.tool_registry.get_definitions()
 
     async def _execute_tool(self, tool_name: str, arguments: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-        """
-        Execute a tool call via MCP service
-
-        Args:
-            tool_name: Name of the tool to execute
-            arguments: Tool arguments
-            user_id: User ID
-
-        Returns:
-            Tool execution result
-        """
-        from datetime import datetime
+        """Execute a tool call via the tool registry."""
         from uuid import UUID
 
         user_uuid = UUID(user_id)
-
-        try:
-            if tool_name == "save_transaction":
-                # Parse date if provided
-                date = None
-                if arguments.get("date"):
-                    date = datetime.fromisoformat(arguments["date"])
-
-                transaction, balance = await self.api_client.save_transaction(
-                    user_id=user_uuid,
-                    amount=arguments["amount"],
-                    category=arguments["category"],
-                    description=arguments["description"],
-                    transaction_type=arguments["transaction_type"],
-                    date=date,
-                )
-                result = {"transaction": transaction, "success": True}
-                if balance:
-                    result["balance"] = balance.model_dump()
-                return result
-
-            elif tool_name == "get_user_transactions":
-                # Parse dates if provided
-                start_date = None
-                end_date = None
-                if arguments.get("start_date"):
-                    start_date = datetime.fromisoformat(arguments["start_date"])
-                if arguments.get("end_date"):
-                    end_date = datetime.fromisoformat(arguments["end_date"])
-
-                transactions = await self.api_client.get_user_transactions(
-                    user_id=user_uuid,
-                    limit=arguments.get("limit", 20),
-                    transaction_type=arguments.get("transaction_type"),
-                    start_date=start_date,
-                    end_date=end_date,
-                    category=arguments.get("category"),
-                )
-                return {"transactions": [t.model_dump() for t in transactions]}
-
-            elif tool_name == "delete_transaction":
-                transaction_id = UUID(arguments["transaction_id"])
-                balance = await self.api_client.delete_transaction(user_uuid, transaction_id)
-                result = {"success": True, "message": "Transaction deleted successfully"}
-                if balance:
-                    result["balance"] = balance.model_dump()
-                return result
-
-            elif tool_name == "delete_last_transaction":
-                await self.api_client.delete_last_transaction(user_uuid)
-                return {"success": True, "message": "Last transaction deleted successfully"}
-
-            elif tool_name == "delete_last_statement_transactions":
-                deleted_count = await self.api_client.delete_last_statement_transactions(user_uuid)
-                return {"success": True, "deleted_count": deleted_count}
-
-            elif tool_name == "mcc_lookup":
-                # For now, return simple lookup (can be implemented in API later)
-                mcc_codes = {
-                    "5411": {"code": "5411", "description": "Grocery Stores", "category": "Food"},
-                    "5812": {"code": "5812", "description": "Restaurants", "category": "Food"},
-                }
-                result = mcc_codes.get(arguments["mcc_code"], {"code": arguments["mcc_code"], "description": "Unknown"})
-                return result
-
-            else:
-                raise ValueError(f"Unknown tool: {tool_name}")
-
-        except Exception as e:
-            logger.error(f"❌ Tool execution failed ({tool_name}): {e}")
-            return {"error": str(e), "success": False}
+        return await self.tool_registry.execute(tool_name, user_uuid, arguments)
 
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """

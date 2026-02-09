@@ -2,16 +2,10 @@
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
 from schemas.api_tools import (
-    SaveTransactionTool,
-    DeleteTransactionTool,
-    GetUserTransactionsTool,
-    DeleteLastTransactionTool,
-    DeleteLastStatementTransactionsTool,
-    CreateTransactionsFromStatementTool,
-    MCCLookupTool,
     TransactionCreateShort,
     UserBalance,
     TransactionRead,
+    CategoryResponse,
 )
 from schemas.bank_statement import (
     BankStatement,
@@ -37,17 +31,11 @@ __all__ = [
     "MessageInput",
     "LLMResponse",
     "ToolCall",
-    # API Tools
-    "SaveTransactionTool",
-    "DeleteTransactionTool",
-    "GetUserTransactionsTool",
-    "DeleteLastTransactionTool",
-    "DeleteLastStatementTransactionsTool",
-    "CreateTransactionsFromStatementTool",
-    "MCCLookupTool",
+    # API Schemas
     "TransactionCreateShort",
     "UserBalance",
     "TransactionRead",
+    "CategoryResponse",
     # Bank Statement
     "BankStatement",
     "ParsedStatement",
