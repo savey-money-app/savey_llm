@@ -103,46 +103,63 @@ class MainAgent(BaseAgent):
             # Build messages with additional context
             messages = self.build_messages(message, additional_context=additional_context)
 
-            # Invoke model
+            # Tool execution loop: keep invoking the model and executing
+            # tool calls until the LLM returns a pure text response (or we
+            # hit the safety limit).
+            max_tool_rounds = 5
+            executed_tools: List[ToolCall] = []
+            content = ""
             response = await model.ainvoke(messages)
+            tokens_used = None
 
-            # Extract content and tool calls
-            content = self.extract_content(response.content if hasattr(response, "content") else "")
-            tool_calls = self.extract_tool_calls(response)
+            for _round in range(max_tool_rounds):
+                content = self.extract_content(response.content if hasattr(response, "content") else "")
+                tool_calls = self.extract_tool_calls(response)
 
-            # Execute tool calls if any
-            executed_tools = []
-            for tc in tool_calls:
-                result = await self._execute_tool(tc.name, tc.arguments, str(message.user_id))
-                tc.result = result
-                executed_tools.append(tc)
+                if not tool_calls:
+                    # No more tool calls -- we have the final text response
+                    break
 
-                # Check if this is a transaction deletion request that needs HITL
-                if tc.name == "get_user_transactions" and "delete" in message.content.lower():
-                    # This is likely a deletion request - check if we have matches
-                    transactions_data = result.get("transactions", [])
-                    if transactions_data:
-                        from schemas.api_tools import TransactionRead
+                # Execute every tool call in this round
+                for tc in tool_calls:
+                    result = await self._execute_tool(tc.name, tc.arguments, str(message.user_id))
+                    tc.result = result
+                    executed_tools.append(tc)
 
-                        transactions = [TransactionRead(**t) for t in transactions_data]
+                    # Check if this is a transaction deletion request that needs HITL
+                    if tc.name == "get_user_transactions" and "delete" in message.content.lower():
+                        transactions_data = result.get("transactions", [])
+                        if transactions_data:
+                            from schemas.api_tools import TransactionRead
 
-                        # Initiate HITL flow
-                        deletion_response = await self.deletion_flow.initiate_deletion_flow(
-                            user_id=message.user_id,
-                            message_id=message.message_id,
-                            search_query=message.content,
-                            matched_transactions=transactions,
-                        )
+                            transactions = [TransactionRead(**t) for t in transactions_data]
 
-                        # Return HITL response
-                        return self.build_response(
-                            message=message,
-                            content=deletion_response.message,
-                            tool_calls=executed_tools,
-                            hitl_flow_id=deletion_response.flow_id,
-                            hitl_required=True,
-                            hitl_data={"matches_found": deletion_response.matches_found},
-                        )
+                            deletion_response = await self.deletion_flow.initiate_deletion_flow(
+                                user_id=message.user_id,
+                                message_id=message.message_id,
+                                search_query=message.content,
+                                matched_transactions=transactions,
+                            )
+
+                            return self.build_response(
+                                message=message,
+                                content=deletion_response.message,
+                                tool_calls=executed_tools,
+                                hitl_flow_id=deletion_response.flow_id,
+                                hitl_required=True,
+                                hitl_data={"matches_found": deletion_response.matches_found},
+                            )
+
+                # Feed tool results back to the LLM for the next round
+                tool_results_context = "Tool execution results:\n"
+                for tc in tool_calls:
+                    tool_results_context += f"- {tc.name}: {tc.result}\n"
+
+                messages = messages + [response, HumanMessage(content=tool_results_context)]
+                response = await model.ainvoke(messages)
+
+            # After the loop, extract final content from the last response
+            content = self.extract_content(response.content if hasattr(response, "content") else content)
 
             # Extract balance from tool results if present
             user_balance = None
@@ -152,23 +169,7 @@ class MainAgent(BaseAgent):
                     user_balance = UserBalance(**tc.result["balance"])
                     break
 
-            # If we executed tools, regenerate response with results
-            if executed_tools:
-                # Add tool results to context and regenerate
-                tool_results_context = "Tool execution results:\n"
-                for tc in executed_tools:
-                    tool_results_context += f"- {tc.name}: {tc.result}\n"
-
-                final_messages = messages + [
-                    response,
-                    HumanMessage(content=tool_results_context),
-                ]
-
-                final_response = await model.ainvoke(final_messages)
-                content = self.extract_content(final_response.content if hasattr(final_response, "content") else content)
-
             # Calculate token usage (approximate)
-            tokens_used = None
             if hasattr(response, "response_metadata"):
                 tokens_used = response.response_metadata.get("token_usage", {}).get("total_tokens")
 
