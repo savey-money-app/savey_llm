@@ -140,6 +140,7 @@ class MainAgent(BaseAgent):
                                 message_id=message.message_id,
                                 search_query=message.content,
                                 matched_transactions=transactions,
+                                user_currency=user_currency,
                             )
 
                             return self.build_response(

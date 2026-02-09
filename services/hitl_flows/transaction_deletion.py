@@ -33,7 +33,12 @@ class TransactionDeletionFlow:
         self.api_client = api_client
 
     async def initiate_deletion_flow(
-        self, user_id: UUID, message_id: str, search_query: str, matched_transactions: List[TransactionRead]
+        self,
+        user_id: UUID,
+        message_id: str,
+        search_query: str,
+        matched_transactions: List[TransactionRead],
+        user_currency: str = "USD",
     ) -> TransactionDeletionResponse:
         """
         Initiate transaction deletion HITL flow
@@ -66,6 +71,7 @@ class TransactionDeletionFlow:
                 search_query=search_query,
                 matched_transactions=matched_transactions,
                 selected_transaction_id=transaction.id,
+                user_currency=user_currency,
             )
 
             flow_request = await self.hitl_manager.create_flow(
@@ -78,10 +84,10 @@ class TransactionDeletionFlow:
             message = f"""✅ Found 1 matching transaction:
 
 **Transaction Details:**
-- Amount: ${abs(transaction.amount):.2f} ({transaction.transaction_type})
+- Amount: {abs(transaction.amount):.2f} {user_currency} ({transaction.transaction_type})
 - Category: {transaction.category.title}
 - Description: {transaction.description}
-- Date: {transaction.date.strftime('%Y-%m-%d %H:%M')}
+- Date: {transaction.date.strftime('%Y-%m-%d')}
 
 Do you want to delete this transaction? Reply with 'confirm' to delete or 'cancel' to abort.
 
@@ -96,7 +102,10 @@ Flow ID: `{flow_request.flow_id}`"""
 
         # Multiple matches - user needs to select one
         flow_data = TransactionDeletionFlowData(
-            search_query=search_query, matched_transactions=matched_transactions, selected_transaction_id=None
+            search_query=search_query,
+            matched_transactions=matched_transactions,
+            selected_transaction_id=None,
+            user_currency=user_currency,
         )
 
         flow_request = await self.hitl_manager.create_flow(
@@ -110,7 +119,7 @@ Flow ID: `{flow_request.flow_id}`"""
         transaction_list = []
         for i, t in enumerate(matched_transactions[:20], 1):  # Limit to 20
             transaction_list.append(
-                f"{i}. **${abs(t.amount):.2f}** - {t.category.title} - {t.description} ({t.date.strftime('%Y-%m-%d')})"
+                f"{i}. **{abs(t.amount):.2f} {user_currency}** - {t.category.title} - {t.description} ({t.date.strftime('%Y-%m-%d')})"
             )
 
         message = f"""🔍 Found {len(matched_transactions)} matching transactions:
@@ -145,6 +154,7 @@ Flow ID: `{flow_request.flow_id}`"""
             return "❌ Flow not found or expired. Please start over."
 
         flow_data = TransactionDeletionFlowData(**flow["data"])
+        currency = flow_data.user_currency
 
         if not flow_data.selected_transaction_id:
             return "❌ No transaction selected. Please start over."
@@ -163,15 +173,15 @@ Flow ID: `{flow_request.flow_id}`"""
                 message = f"""✅ Transaction deleted successfully!
 
 **Deleted:**
-- Amount: ${abs(deleted.amount):.2f} ({deleted.transaction_type})
+- Amount: {abs(deleted.amount):.2f} {currency} ({deleted.transaction_type})
 - Category: {deleted.category.title}
 - Description: {deleted.description}
-- Date: {deleted.date.strftime('%Y-%m-%d %H:%M')}"""
+- Date: {deleted.date.strftime('%Y-%m-%d')}"""
             else:
                 message = "✅ Transaction deleted successfully!"
 
             if balance:
-                message += f"\n\n**Updated Balance:** ${balance.balance:.2f}"
+                message += f"\n\n**Updated Balance:** {balance.balance:.2f} {currency}"
 
             # Clean up flow
             await self.hitl_manager.delete_flow(flow_id)

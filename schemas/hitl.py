@@ -70,6 +70,7 @@ class TransactionDeletionFlowData(BaseModel):
     search_query: str = Field(..., description="User's search query for transactions to delete")
     matched_transactions: List[TransactionRead] = Field(..., description="Transactions matching the search")
     selected_transaction_id: Optional[UUID] = Field(None, description="Transaction ID selected by user")
+    user_currency: str = Field(default="USD", description="User's preferred currency code")
 
     class Config:
         json_schema_extra = {
@@ -101,6 +102,7 @@ class StatementParsingFlowData(BaseModel):
     statement_date: Optional[datetime] = Field(None, description="Date of the statement")
     iteration: int = Field(default=1, description="Current iteration of the confirmation loop")
     user_remarks: Optional[str] = Field(None, description="User's remarks from previous iteration")
+    user_currency: str = Field(default="USD", description="User's preferred currency code")
 
     class Config:
         json_schema_extra = {

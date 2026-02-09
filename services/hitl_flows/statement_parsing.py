@@ -36,12 +36,15 @@ class StatementParsingFlow:
         self.hitl_manager = hitl_manager
         self.api_client = api_client
 
-    def _format_transaction_list(self, transactions: List[TransactionCreateShort]) -> str:
+    def _format_transaction_list(
+        self, transactions: List[TransactionCreateShort], currency: str = "USD"
+    ) -> str:
         """
         Format transactions for user presentation
 
         Args:
             transactions: List of parsed transactions
+            currency: Currency code to display
 
         Returns:
             Formatted string
@@ -51,7 +54,7 @@ class StatementParsingFlow:
         total_expenses = 0.0
 
         for i, t in enumerate(transactions, 1):
-            amount_str = f"${abs(t.amount):.2f}"
+            amount_str = f"{abs(t.amount):.2f} {currency}"
             if t.amount > 0:
                 amount_str = f"+{amount_str} (income)"
                 total_income += t.amount
@@ -65,7 +68,7 @@ class StatementParsingFlow:
         return "\n".join(lines), total_income, total_expenses
 
     async def initiate_parsing_flow(
-        self, user_id: UUID, message_id: str, parsed_statement: ParsedStatement
+        self, user_id: UUID, message_id: str, parsed_statement: ParsedStatement, user_currency: str = "USD"
     ) -> StatementParsingPresentationList:
         """
         Initiate statement parsing HITL flow
@@ -99,6 +102,7 @@ class StatementParsingFlow:
             statement_date=parsed_statement.statement_date,
             iteration=1,
             user_remarks=None,
+            user_currency=user_currency,
         )
 
         flow_request = await self.hitl_manager.create_flow(
@@ -110,7 +114,7 @@ class StatementParsingFlow:
 
         # Format transaction list
         formatted_list, total_income, total_expenses = self._format_transaction_list(
-            parsed_statement.transactions
+            parsed_statement.transactions, currency=user_currency
         )
 
         net_change = total_income - total_expenses
@@ -124,9 +128,9 @@ I found **{len(parsed_statement.transactions)} transactions** in your statement:
 ```
 
 **Summary:**
-- Total Income: +${total_income:.2f}
-- Total Expenses: -${total_expenses:.2f}
-- Net Change: ${net_change:+.2f}
+- Total Income: +{total_income:.2f} {user_currency}
+- Total Expenses: -{total_expenses:.2f} {user_currency}
+- Net Change: {net_change:+.2f} {user_currency}
 
 **Please review the transactions above.**
 
@@ -192,9 +196,11 @@ Flow ID: `{flow_request.flow_id}`"""
             flow_id, HITLFlowState.IN_PROGRESS, data=flow_data.model_dump(mode="json")
         )
 
+        currency = flow_data.user_currency
+
         # Format updated transaction list
         formatted_list, total_income, total_expenses = self._format_transaction_list(
-            modified_transactions
+            modified_transactions, currency=currency
         )
 
         net_change = total_income - total_expenses
@@ -208,9 +214,9 @@ I've updated the transactions based on your feedback:
 ```
 
 **Summary:**
-- Total Income: +${total_income:.2f}
-- Total Expenses: -${total_expenses:.2f}
-- Net Change: ${net_change:+.2f}
+- Total Income: +{total_income:.2f} {currency}
+- Total Expenses: -{total_expenses:.2f} {currency}
+- Net Change: {net_change:+.2f} {currency}
 
 **Please review the updated list.**
 
@@ -249,6 +255,7 @@ Flow ID: `{flow_id}`"""
             return "❌ Flow not found or expired. Please start over."
 
         flow_data = StatementParsingFlowData(**flow["data"])
+        currency = flow_data.user_currency
 
         if not flow_data.transactions:
             return "❌ No transactions to create."
@@ -274,9 +281,9 @@ Statement ID: `{statement_id}`"""
                 message += f"""
 
 **Updated Balance:**
-- Balance: ${balance.balance:.2f}
-- Monthly spending: ${balance.monthly_spending:.2f}
-- Daily spending: ${balance.daily_spending:.2f}"""
+- Balance: {balance.balance:.2f} {currency}
+- Monthly spending: {balance.monthly_spending:.2f} {currency}
+- Daily spending: {balance.daily_spending:.2f} {currency}"""
             else:
                 message += "\n\nYour balance and transaction history have been updated."
 

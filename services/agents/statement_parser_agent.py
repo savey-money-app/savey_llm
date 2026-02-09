@@ -191,10 +191,14 @@ class StatementParserAgent(BaseAgent):
                     content="❌ No transactions found in the statement. Please check the file and try again.",
                 )
 
+            ctx = message.user_metadata or {}
+            user_currency = ctx.get("user_currency", "USD")
+
             presentation = await self.parsing_flow.initiate_parsing_flow(
                 user_id=message.user_id,
                 message_id=message.message_id,
                 parsed_statement=parsed_statement,
+                user_currency=user_currency,
             )
 
             return self.build_response(
