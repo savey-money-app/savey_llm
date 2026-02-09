@@ -28,7 +28,6 @@ class MessageInput(BaseModel):
     hitl_flow_id: Optional[str] = Field(
         None, description="HITL flow ID if this is a response to a confirmation request"
     )
-    hitl_action: Optional[str] = Field(None, description="HITL action: 'confirm', 'cancel', 'modify'")
 
     class Config:
         json_schema_extra = {
@@ -40,6 +39,5 @@ class MessageInput(BaseModel):
                 "context": {"conversation_history": []},
                 "attachments": None,
                 "hitl_flow_id": None,
-                "hitl_action": None,
             }
         }

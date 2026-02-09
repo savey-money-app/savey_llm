@@ -59,19 +59,6 @@ class HITLResponse(BaseModel):
         json_schema_extra = {"description": "Response from a HITL flow containing current state and message"}
 
 
-class HITLUserResponse(BaseModel):
-    """User's response to a HITL flow"""
-
-    flow_id: str = Field(..., description="Flow ID this response is for")
-    user_id: UUID = Field(..., description="User providing the response")
-    action: str = Field(..., description="Action: 'confirm', 'cancel', 'modify'")
-    modifications: Optional[Dict[str, Any]] = Field(None, description="Optional modifications to the data")
-    comment: Optional[str] = Field(None, description="Optional user comment/remarks")
-
-    class Config:
-        json_schema_extra = {"description": "User's response to a HITL confirmation flow"}
-
-
 # ============================================================================
 # Transaction Deletion HITL
 # ============================================================================
