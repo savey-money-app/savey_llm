@@ -220,44 +220,23 @@ class LLMService:
 
         return json.loads(content)
 
-    async def _handle_hitl_response(self, message: MessageInput) -> LLMResponse:
+    async def _handle_hitl_response(self, message: MessageInput, flow: dict) -> LLMResponse:
         """
         Handle HITL flow continuation using LLM-based action inference.
 
         The LLM reads the flow context + user message and returns a structured
         JSON decision (confirm / cancel / select / modify).
+
+        Args:
+            message: Input message from user
+            flow: Pre-loaded flow dict (already retrieved by caller)
         """
-        flow_id = message.hitl_flow_id
+        flow_id = flow["flow_id"]
+        user_id_str = str(message.user_id)
 
-        logger.info(f"🔄 Handling HITL response for flow {flow_id}")
-
-        # 1. Load flow from Redis
-        flow = await self.hitl_manager.get_flow(flow_id)
-        if not flow:
-            return LLMResponse(
-                message_id=message.message_id,
-                user_id=message.user_id,
-                content="❌ This confirmation flow has expired or doesn't exist. Please start over.",
-                tool_calls=[],
-                model=get_model_name("main"),
-                timestamp=datetime.utcnow(),
-                agent_type="hitl_manager",
-            )
+        logger.info(f"🔄 Handling HITL response for flow {flow_id} (user {user_id_str})")
 
         flow_type = HITLFlowType(flow["flow_type"])
-        current_state = HITLFlowState(flow["state"])
-
-        # Check if flow already completed
-        if current_state in (HITLFlowState.CONFIRMED, HITLFlowState.CANCELLED, HITLFlowState.EXPIRED):
-            return LLMResponse(
-                message_id=message.message_id,
-                user_id=message.user_id,
-                content=f"This flow has already been {current_state.value}.",
-                tool_calls=[],
-                model=get_model_name("main"),
-                timestamp=datetime.utcnow(),
-                agent_type="hitl_manager",
-            )
 
         # Extract user profile from message context
         ctx = message.user_metadata or {}
@@ -294,16 +273,16 @@ class LLMService:
         content = user_msg
 
         if action == "cancel":
-            await self.hitl_manager.update_flow_state(flow_id, HITLFlowState.CANCELLED)
+            await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CANCELLED)
             content = content or "❌ Cancelled. No changes were made."
 
         elif action == "confirm":
-            await self.hitl_manager.update_flow_state(flow_id, HITLFlowState.CONFIRMED)
+            await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CONFIRMED)
             if flow_type == HITLFlowType.TRANSACTION_DELETION:
-                result = await self.deletion_flow.execute_deletion(flow_id, message.user_id)
+                result = await self.deletion_flow.execute_deletion(message.user_id)
                 content = result
             elif flow_type == HITLFlowType.STATEMENT_PARSING:
-                result = await self.parsing_flow.execute_bulk_creation(flow_id, message.user_id)
+                result = await self.parsing_flow.execute_bulk_creation(message.user_id)
                 content = result
 
         elif action == "select" and flow_type == HITLFlowType.TRANSACTION_DELETION:
@@ -318,11 +297,11 @@ class LLMService:
                 selected = flow_data.matched_transactions[selected_number - 1]
                 flow_data.selected_transaction_id = selected.id
                 await self.hitl_manager.update_flow_state(
-                    flow_id,
+                    user_id_str,
                     HITLFlowState.CONFIRMED,
                     flow_data.model_dump(mode="json"),
                 )
-                result = await self.deletion_flow.execute_deletion(flow_id, message.user_id)
+                result = await self.deletion_flow.execute_deletion(message.user_id)
                 content = result
             else:
                 count = len(flow_data.matched_transactions)
@@ -340,7 +319,7 @@ class LLMService:
                 # Check iteration limit
                 current_iteration = int(flow.get("iteration", 1))
                 if current_iteration >= self.hitl_manager.max_iterations:
-                    await self.hitl_manager.update_flow_state(flow_id, HITLFlowState.EXPIRED)
+                    await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.EXPIRED)
                     content = (
                         f"Maximum modification iterations ({self.hitl_manager.max_iterations}) "
                         f"reached. Please start over by uploading the statement again."
@@ -359,7 +338,6 @@ class LLMService:
                         )
 
                     presentation = await self.parsing_flow.handle_modification_iteration(
-                        flow_id=flow_id,
                         user_id=message.user_id,
                         modified_transactions=modified,
                         remarks=message.content,
@@ -405,10 +383,11 @@ class LLMService:
         try:
             logger.info(f"📨 Processing message {message.message_id} from user {message.user_id}")
 
-            # Check if this is a HITL flow response
-            if message.hitl_flow_id:
-                logger.info(f"🔄 Message is HITL flow response: {message.hitl_flow_id}")
-                return await self._handle_hitl_response(message)
+            # Check if user has an active HITL flow
+            active_flow = await self.hitl_manager.get_active_flow(str(message.user_id))
+            if active_flow:
+                logger.info(f"🔄 Active HITL flow detected for user {message.user_id}: {active_flow.get('flow_id')}")
+                return await self._handle_hitl_response(message, active_flow)
 
             # Route to appropriate agent
             if self.multi_agent_enabled:

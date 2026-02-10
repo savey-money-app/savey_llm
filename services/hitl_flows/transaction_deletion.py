@@ -137,19 +137,20 @@ Flow ID: `{flow_request.flow_id}`"""
             flow_id=flow_request.flow_id,
         )
 
-    async def execute_deletion(self, flow_id: str, user_id: UUID) -> str:
+    async def execute_deletion(self, user_id: UUID) -> str:
         """
         Execute transaction deletion after user confirmation
 
         Args:
-            flow_id: HITL flow ID
             user_id: User ID
 
         Returns:
             Success message
         """
+        user_id_str = str(user_id)
+
         # Get flow data
-        flow = await self.hitl_manager.get_flow(flow_id)
+        flow = await self.hitl_manager.get_flow(user_id_str)
         if not flow:
             return "❌ Flow not found or expired. Please start over."
 
@@ -184,7 +185,7 @@ Flow ID: `{flow_request.flow_id}`"""
                 message += f"\n\n**Updated Balance:** {balance.balance:.2f} {currency}"
 
             # Clean up flow
-            await self.hitl_manager.delete_flow(flow_id)
+            await self.hitl_manager.delete_flow(user_id_str)
 
             return message
 

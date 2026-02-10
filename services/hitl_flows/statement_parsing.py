@@ -152,7 +152,6 @@ Flow ID: `{flow_request.flow_id}`"""
 
     async def handle_modification_iteration(
         self,
-        flow_id: str,
         user_id: UUID,
         modified_transactions: List[TransactionCreateShort],
         remarks: Optional[str] = None,
@@ -161,7 +160,6 @@ Flow ID: `{flow_request.flow_id}`"""
         Handle modification iteration in the HITL loop
 
         Args:
-            flow_id: HITL flow ID
             user_id: User ID
             modified_transactions: Updated transaction list
             remarks: User's remarks
@@ -169,7 +167,9 @@ Flow ID: `{flow_request.flow_id}`"""
         Returns:
             Updated StatementParsingPresentationList
         """
-        flow = await self.hitl_manager.get_flow(flow_id)
+        user_id_str = str(user_id)
+
+        flow = await self.hitl_manager.get_flow(user_id_str)
         if not flow:
             return StatementParsingPresentationList(
                 transactions=[],
@@ -181,6 +181,7 @@ Flow ID: `{flow_request.flow_id}`"""
                 flow_id="",
             )
 
+        flow_id = flow["flow_id"]
         iteration = int(flow.get("iteration", 1))
 
         # Update flow data
@@ -193,7 +194,7 @@ Flow ID: `{flow_request.flow_id}`"""
 
         from schemas.hitl import HITLFlowState
         await self.hitl_manager.update_flow_state(
-            flow_id, HITLFlowState.IN_PROGRESS, data=flow_data.model_dump(mode="json")
+            user_id_str, HITLFlowState.IN_PROGRESS, data=flow_data.model_dump(mode="json")
         )
 
         currency = flow_data.user_currency
@@ -236,21 +237,20 @@ Flow ID: `{flow_id}`"""
             flow_id=flow_id,
         )
 
-    async def execute_bulk_creation(
-        self, flow_id: str, user_id: UUID
-    ) -> str:
+    async def execute_bulk_creation(self, user_id: UUID) -> str:
         """
         Execute bulk transaction creation after user confirmation
 
         Args:
-            flow_id: HITL flow ID
             user_id: User ID
 
         Returns:
             Success message
         """
+        user_id_str = str(user_id)
+
         # Get flow data
-        flow = await self.hitl_manager.get_flow(flow_id)
+        flow = await self.hitl_manager.get_flow(user_id_str)
         if not flow:
             return "❌ Flow not found or expired. Please start over."
 
@@ -288,7 +288,7 @@ Statement ID: `{statement_id}`"""
                 message += "\n\nYour balance and transaction history have been updated."
 
             # Clean up flow
-            await self.hitl_manager.delete_flow(flow_id)
+            await self.hitl_manager.delete_flow(user_id_str)
 
             return message
 

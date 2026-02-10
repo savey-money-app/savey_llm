@@ -25,9 +25,6 @@ class MessageInput(BaseModel):
     attachments: Optional[List[MessageAttachment]] = Field(
         None, description="Optional file attachments (bank statements, receipts)"
     )
-    hitl_flow_id: Optional[str] = Field(
-        None, description="HITL flow ID if this is a response to a confirmation request"
-    )
 
     class Config:
         json_schema_extra = {
@@ -38,6 +35,5 @@ class MessageInput(BaseModel):
                 "timestamp": "2024-01-15T10:30:00Z",
                 "context": {"conversation_history": []},
                 "attachments": None,
-                "hitl_flow_id": None,
             }
         }
