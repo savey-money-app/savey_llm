@@ -271,6 +271,7 @@ class LLMService:
 
         # 3. Execute based on the LLM's decision
         content = user_msg
+        balance = None
 
         if action == "cancel":
             await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CANCELLED)
@@ -279,11 +280,9 @@ class LLMService:
         elif action == "confirm":
             await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CONFIRMED)
             if flow_type == HITLFlowType.TRANSACTION_DELETION:
-                result = await self.deletion_flow.execute_deletion(message.user_id)
-                content = result
+                content, balance = await self.deletion_flow.execute_deletion(message.user_id)
             elif flow_type == HITLFlowType.STATEMENT_PARSING:
-                result = await self.parsing_flow.execute_bulk_creation(message.user_id)
-                content = result
+                content, balance = await self.parsing_flow.execute_bulk_creation(message.user_id)
 
         elif action == "select" and flow_type == HITLFlowType.TRANSACTION_DELETION:
             # User selected a specific transaction from the list
@@ -301,8 +300,7 @@ class LLMService:
                     HITLFlowState.CONFIRMED,
                     flow_data.model_dump(mode="json"),
                 )
-                result = await self.deletion_flow.execute_deletion(message.user_id)
-                content = result
+                content, balance = await self.deletion_flow.execute_deletion(message.user_id)
             else:
                 count = len(flow_data.matched_transactions)
                 content = (
@@ -351,7 +349,6 @@ class LLMService:
                         model=get_model_name("main"),
                         timestamp=datetime.utcnow(),
                         agent_type="hitl_manager",
-                        hitl_flow_id=flow_id,
                         hitl_required=True,
                         hitl_data={"transaction_count": presentation.transaction_count},
                     )
@@ -368,6 +365,7 @@ class LLMService:
             model=get_model_name("main"),
             timestamp=datetime.utcnow(),
             agent_type="hitl_manager",
+            balance=balance,
         )
 
     async def process_message(self, message: MessageInput) -> LLMResponse:

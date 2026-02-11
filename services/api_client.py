@@ -67,10 +67,16 @@ class APIClient:
     # ============================================================================
 
     async def _resolve_category_id(self, user_id: UUID, category_name: str) -> str:
-        """Resolve a category name to its UUID, creating the category if it doesn't exist."""
+        """Resolve a category name to its UUID, creating the category if it doesn't exist.
+
+        Matches against both ``title`` and ``title_ru`` (case-insensitive).
+        """
         categories = await self._make_request("GET", "/api/v1/categories", user_id)
+        name_lower = category_name.lower()
         for cat in categories:
-            if cat.get("title", "").lower() == category_name.lower():
+            if cat.get("title", "").lower() == name_lower:
+                return cat["id"]
+            if cat.get("title_ru", "").lower() == name_lower:
                 return cat["id"]
 
         # Category not found — create it
@@ -83,7 +89,9 @@ class APIClient:
             # May have been created concurrently — try fetching again
             categories = await self._make_request("GET", "/api/v1/categories", user_id)
             for cat in categories:
-                if cat.get("title", "").lower() == category_name.lower():
+                if cat.get("title", "").lower() == name_lower:
+                    return cat["id"]
+                if cat.get("title_ru", "").lower() == name_lower:
                     return cat["id"]
             raise
 

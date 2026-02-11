@@ -84,8 +84,13 @@ class MainAgent(BaseAgent):
             except Exception:
                 categories = []
             if categories:
-                category_lines = "\n".join(f"- {c['title']}" for c in categories)
-                category_context = f"Available transaction categories:\n{category_lines}"
+                category_lines = []
+                for c in categories:
+                    line = f"- {c['title']}"
+                    if c.get("title_ru"):
+                        line += f" ({c['title_ru']})"
+                    category_lines.append(line)
+                category_context = f"Available transaction categories:\n" + "\n".join(category_lines)
             else:
                 category_context = "No categories defined yet. You may suggest a suitable category name."
 
@@ -147,7 +152,6 @@ class MainAgent(BaseAgent):
                                 message=message,
                                 content=deletion_response.message,
                                 tool_calls=executed_tools,
-                                hitl_flow_id=deletion_response.flow_id,
                                 hitl_required=True,
                                 hitl_data={"matches_found": deletion_response.matches_found},
                             )

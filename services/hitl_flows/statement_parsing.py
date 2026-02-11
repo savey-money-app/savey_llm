@@ -12,7 +12,7 @@ Flow:
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from schemas.bank_statement import ParsedStatement
@@ -22,7 +22,7 @@ from schemas.hitl import (
     StatementParsingFlowData,
     StatementParsingPresentationList,
 )
-from schemas.api_tools import TransactionCreateShort
+from schemas.api_tools import TransactionCreateShort, UserBalance
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
 
@@ -237,7 +237,7 @@ Flow ID: `{flow_id}`"""
             flow_id=flow_id,
         )
 
-    async def execute_bulk_creation(self, user_id: UUID) -> str:
+    async def execute_bulk_creation(self, user_id: UUID) -> Tuple[str, Optional[UserBalance]]:
         """
         Execute bulk transaction creation after user confirmation
 
@@ -245,20 +245,20 @@ Flow ID: `{flow_id}`"""
             user_id: User ID
 
         Returns:
-            Success message
+            Tuple of (message string, balance or None)
         """
         user_id_str = str(user_id)
 
         # Get flow data
         flow = await self.hitl_manager.get_flow(user_id_str)
         if not flow:
-            return "❌ Flow not found or expired. Please start over."
+            return "❌ Flow not found or expired. Please start over.", None
 
         flow_data = StatementParsingFlowData(**flow["data"])
         currency = flow_data.user_currency
 
         if not flow_data.transactions:
-            return "❌ No transactions to create."
+            return "❌ No transactions to create.", None
 
         # Create transactions via bulk API
         try:
@@ -290,8 +290,8 @@ Statement ID: `{statement_id}`"""
             # Clean up flow
             await self.hitl_manager.delete_flow(user_id_str)
 
-            return message
+            return message, balance
 
         except Exception as e:
             logger.error(f"❌ Failed to create transactions: {e}")
-            return f"❌ Failed to create transactions: {e}"
+            return f"❌ Failed to create transactions: {e}", None

@@ -48,7 +48,6 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService):
                     "content": response.content,
                     "agent_type": response.agent_type,
                     "hitl_required": response.hitl_required,
-                    "hitl_flow_id": response.hitl_flow_id,
                     "hitl_data": response.hitl_data,
                     "error": response.error,
                 }

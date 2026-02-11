@@ -26,7 +26,6 @@ class LLMResponse(BaseModel):
     tokens_used: Optional[int] = Field(None, description="Total tokens used")
     error: Optional[str] = Field(None, description="Error message if processing failed")
     # HITL fields
-    hitl_flow_id: Optional[str] = Field(None, description="HITL flow ID if this response initiates a flow")
     hitl_required: bool = Field(
         default=False, description="Whether this response requires human confirmation (HITL)"
     )
@@ -47,7 +46,6 @@ class LLMResponse(BaseModel):
                 "timestamp": "2024-01-15T10:30:05Z",
                 "tokens_used": 150,
                 "error": None,
-                "hitl_flow_id": None,
                 "hitl_required": False,
                 "hitl_data": None,
                 "agent_type": "main",
