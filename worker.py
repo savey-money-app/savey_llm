@@ -44,34 +44,28 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
                 message = MessageInput(**job)
                 response = await llm_service.process_message(message)
 
-                # Publish the full response as a single chunk
-                response = MessageOutput(
+                logger.info(f"✅ LLM processing complete for {message_id}, publishing response")
+
+                # Publish the full response
+                output = MessageOutput(
                     content=response.content,
                     hitl_data=response.hitl_data,
                     balance=response.balance,
-                    error=response.error
+                    error=response.error,
                 )
-                await redis.publish(channel, response.model_dump_json())
+                await redis.publish(channel, output.model_dump_json())
+                logger.info(f"📤 Response published for {message_id}")
 
             except Exception as e:
                 logger.error(f"❌ Error processing job {message_id}: {e}", exc_info=True)
-                response = MessageOutput(
-                    content=None,
-                    hitl_data=None,
-                    balance=None,
-                    error=str(e)
-                )
-                await redis.publish(channel, response.model_dump_json())
+                error_output = MessageOutput(error=str(e))
+                await redis.publish(channel, error_output.model_dump_json())
 
             finally:
-                # Always send [DONE] so the API-side stream closes
-                response = MessageOutput(
-                    content="",
-                    hitl_data=None,
-                    balance=None,
-                    error=None
-                )
-                await redis.publish(channel, response.model_dump_json())
+                # Always send done signal so the API-side stream closes
+                done_output = MessageOutput(done=True)
+                await redis.publish(channel, done_output.model_dump_json())
+                logger.info(f"🏁 Done signal sent for {message_id}")
 
         except asyncio.CancelledError:
             break

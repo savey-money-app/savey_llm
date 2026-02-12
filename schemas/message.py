@@ -42,7 +42,8 @@ class MessageInput(BaseModel):
 class MessageOutput(BaseModel):
     """Output message to publish to Redis"""
 
-    content: str = Field(..., description="LLM's text response")
+    content: Optional[str] = Field(None, description="LLM's text response")
+    done: bool = Field(default=False, description="Whether this is the final message in the stream")
     hitl_data: Optional[Dict[str, Any]] = Field(None, description="HITL flow-specific data")
     balance: Optional[UserBalance] = Field(None, description="User balance if transaction was created/deleted")
     error: Optional[str] = Field(None, description="Error message if processing failed")
