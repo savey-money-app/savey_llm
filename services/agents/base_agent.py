@@ -156,7 +156,6 @@ class BaseAgent(ABC):
         tool_calls: Optional[List[ToolCall]] = None,
         tokens_used: Optional[int] = None,
         error: Optional[str] = None,
-        hitl_required: bool = False,
         hitl_data: Optional[Dict[str, Any]] = None,
         balance: Optional[Any] = None,
     ) -> LLMResponse:
@@ -169,7 +168,6 @@ class BaseAgent(ABC):
             tool_calls: List of tool calls made
             tokens_used: Number of tokens used
             error: Error message if any
-            hitl_required: Whether HITL is required
             hitl_data: HITL flow data
             balance: User balance if transaction was created/deleted
 
@@ -185,9 +183,7 @@ class BaseAgent(ABC):
             timestamp=datetime.utcnow(),
             tokens_used=tokens_used,
             error=error,
-            hitl_required=hitl_required,
             hitl_data=hitl_data,
-            agent_type=self.get_agent_name(),
             balance=balance,
         )
 

@@ -109,20 +109,6 @@ class LLMService:
             logger.info("📄 Routing to StatementParserAgent (attachment detected)")
             return await self.statement_parser_agent.process_message(message)
 
-        # Check for bank statement keywords
-        statement_keywords = ["bank statement", "statement", "parse my statement", "uploaded statement"]
-        if any(keyword in message.content.lower() for keyword in statement_keywords):
-            if not message.attachments:
-                # User mentioned statement but didn't attach - ask for it
-                return LLMResponse(
-                    message_id=message.message_id,
-                    user_id=message.user_id,
-                    content="📎 Please attach your bank statement (image or PDF) so I can parse it for you.",
-                    tool_calls=[],
-                    model=get_model_name("main"),
-                    timestamp=datetime.utcnow()
-                )
-
         # Default to main agent for all other requests
         logger.info("🤖 Routing to MainAgent")
         return await self.main_agent.process_message(message)
@@ -260,7 +246,6 @@ class LLMService:
                 tool_calls=[],
                 model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
-                agent_type="hitl_manager",
             )
 
         action = decision.get("action", "confirm")
@@ -347,8 +332,6 @@ class LLMService:
                         tool_calls=[],
                         model=get_model_name("main"),
                         timestamp=datetime.utcnow(),
-                        agent_type="hitl_manager",
-                        hitl_required=True,
                         hitl_data={"transaction_count": presentation.transaction_count},
                     )
 
@@ -363,7 +346,6 @@ class LLMService:
             tool_calls=[],
             model=get_model_name("main"),
             timestamp=datetime.utcnow(),
-            agent_type="hitl_manager",
             balance=balance,
         )
 
@@ -404,6 +386,5 @@ class LLMService:
                 tool_calls=[],
                 model=get_model_name("main"),
                 timestamp=datetime.utcnow(),
-                error=str(e),
-                agent_type="error_handler",
+                error=str(e)
             )

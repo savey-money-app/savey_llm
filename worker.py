@@ -9,6 +9,7 @@ import redis.asyncio as aioredis
 
 from core.config import settings
 from schemas.message import MessageInput
+from schemas.message import MessageOutput
 from services.llm_service import LLMService
 from services.model_factory import get_model_name
 
@@ -22,7 +23,7 @@ QUEUE_KEY = "chat_queue"
 CHANNEL_PREFIX = "chat"
 
 
-async def process_jobs(redis: aioredis.Redis, llm_service: LLMService):
+async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
     """Main loop: brpop a job, process it, publish response chunks."""
     logger.info(f"Listening on queue '{QUEUE_KEY}'...")
     while True:
@@ -44,26 +45,33 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService):
                 response = await llm_service.process_message(message)
 
                 # Publish the full response as a single chunk
-                payload = {
-                    "content": response.content,
-                    "agent_type": response.agent_type,
-                    "hitl_required": response.hitl_required,
-                    "hitl_data": response.hitl_data,
-                    "error": response.error,
-                }
-                # Include balance if present
-                if response.balance:
-                    payload["balance"] = response.balance.model_dump()
-
-                await redis.publish(channel, json.dumps(payload))
+                response = MessageOutput(
+                    content=response.content,
+                    hitl_data=response.hitl_data,
+                    balance=response.balance,
+                    error=response.error
+                )
+                await redis.publish(channel, response.model_dump_json())
 
             except Exception as e:
                 logger.error(f"❌ Error processing job {message_id}: {e}", exc_info=True)
-                await redis.publish(channel, json.dumps({"error": str(e), "content": None}))
+                response = MessageOutput(
+                    content=None,
+                    hitl_data=None,
+                    balance=None,
+                    error=str(e)
+                )
+                await redis.publish(channel, response.model_dump_json())
 
             finally:
                 # Always send [DONE] so the API-side stream closes
-                await redis.publish(channel, "[DONE]")
+                response = MessageOutput(
+                    content=None,
+                    hitl_data=None,
+                    balance=None,
+                    error=None
+                )
+                await redis.publish(channel, response.model_dump_json())
 
         except asyncio.CancelledError:
             break

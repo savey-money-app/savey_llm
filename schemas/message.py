@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
+from schemas.api_tools import UserBalance
 
 
 class MessageAttachment(BaseModel):
@@ -37,3 +38,11 @@ class MessageInput(BaseModel):
                 "attachments": None,
             }
         }
+
+class MessageOutput(BaseModel):
+    """Output message to publish to Redis"""
+
+    content: str = Field(..., description="LLM's text response")
+    hitl_data: Optional[Dict[str, Any]] = Field(None, description="HITL flow-specific data")
+    balance: Optional[UserBalance] = Field(None, description="User balance if transaction was created/deleted")
+    error: Optional[str] = Field(None, description="Error message if processing failed")

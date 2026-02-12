@@ -3,7 +3,7 @@ from faststream import FastStream
 from faststream.redis import RedisBroker
 from core.config import settings
 from schemas.message import MessageInput
-from schemas.response import LLMResponse
+from schemas.message import MessageOutput
 from services.llm_service import LLMService
 from services.model_factory import get_model_name
 import logging
@@ -42,7 +42,7 @@ async def on_shutdown():
 
 @broker.subscriber(settings.REDIS_CHANNEL_INPUT)
 @broker.publisher(settings.REDIS_CHANNEL_OUTPUT)
-async def process_llm_message(message: MessageInput) -> LLMResponse:
+async def process_llm_message(message: MessageInput) -> MessageOutput:
     """
     Subscribe to input channel, process with LLM, publish to output channel
 
@@ -56,7 +56,7 @@ async def process_llm_message(message: MessageInput) -> LLMResponse:
         message: MessageInput from Redis
 
     Returns:
-        LLMResponse to be published to output channel
+        MessageOutput to be published to output channel
     """
     logger.info(f"📨 Received message {message.message_id} from user {message.user_id}")
     logger.debug(f"Message content: {message.content}")
@@ -71,19 +71,21 @@ async def process_llm_message(message: MessageInput) -> LLMResponse:
         if response.tool_calls:
             logger.info(f"🔧 Executed {len(response.tool_calls)} tool calls")
 
-        return response
+        return MessageOutput(
+            content=response.content,
+            hitl_data=response.hitl_data,
+            balance=response.balance,
+            error=response.error
+        )
 
     except Exception as e:
         logger.error(f"❌ Error processing message {message.message_id}: {e}", exc_info=True)
 
         # Return error response
-        return LLMResponse(
-            message_id=message.message_id,
-            user_id=message.user_id,
+        return MessageOutput(
             content="I apologize, but I encountered an error processing your request. Please try again.",
-            tool_calls=[],
-            model=get_model_name("main"),
-            timestamp=message.timestamp,
+            hitl_data=None,
+            balance=None,
             error=str(e)
         )
 
