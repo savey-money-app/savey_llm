@@ -66,7 +66,7 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
             finally:
                 # Always send [DONE] so the API-side stream closes
                 response = MessageOutput(
-                    content=None,
+                    content="",
                     hitl_data=None,
                     balance=None,
                     error=None
