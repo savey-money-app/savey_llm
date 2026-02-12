@@ -167,6 +167,12 @@ class MainAgent(BaseAgent):
             # After the loop, extract final content from the last response
             content = self.extract_content(response.content if hasattr(response, "content") else content)
 
+            # Guard against empty content (e.g. tool errors consumed all rounds
+            # and the LLM never produced a text response)
+            if not content.strip():
+                logger.warning(f"⚠️ MainAgent produced empty content after {max_tool_rounds} tool rounds")
+                content = "I'm sorry, I wasn't able to complete that request. Could you please try again?"
+
             # Extract balance from tool results if present
             user_balance = None
             for tc in executed_tools:
