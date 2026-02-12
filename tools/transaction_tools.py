@@ -35,6 +35,11 @@ class GetUserTransactionsParams(BaseModel):
     start_date: Optional[str] = Field(None, description="Filter transactions after this date (ISO format)")
     end_date: Optional[str] = Field(None, description="Filter transactions before this date (ISO format)")
     category: Optional[str] = Field(None, description="Filter by category name")
+    for_deletion: bool = Field(
+        default=False,
+        description="Set to true when the user wants to DELETE or REMOVE transactions. "
+        "This triggers a confirmation flow before any deletion happens.",
+    )
 
 
 class DeleteTransactionParams(BaseModel):

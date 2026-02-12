@@ -120,8 +120,7 @@ class LLMService:
                     content="📎 Please attach your bank statement (image or PDF) so I can parse it for you.",
                     tool_calls=[],
                     model=get_model_name("main"),
-                    timestamp=datetime.utcnow(),
-                    agent_type="router",
+                    timestamp=datetime.utcnow()
                 )
 
         # Default to main agent for all other requests

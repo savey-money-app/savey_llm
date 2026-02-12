@@ -30,8 +30,6 @@ class LLMResponse(BaseModel):
         default=False, description="Whether this response requires human confirmation (HITL)"
     )
     hitl_data: Optional[Dict[str, Any]] = Field(None, description="HITL flow-specific data")
-    # Agent metadata
-    agent_type: Optional[str] = Field(None, description="Type of agent that generated this response")
     # Balance data
     balance: Optional[UserBalance] = Field(None, description="User balance if transaction was created/deleted")
 

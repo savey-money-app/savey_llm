@@ -204,7 +204,6 @@ class StatementParserAgent(BaseAgent):
             return self.build_response(
                 message=message,
                 content=presentation.message,
-                hitl_required=True,
                 hitl_data={
                     "transaction_count": presentation.transaction_count,
                     "total_income": presentation.total_income,

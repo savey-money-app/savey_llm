@@ -133,7 +133,7 @@ class MainAgent(BaseAgent):
                     executed_tools.append(tc)
 
                     # Check if this is a transaction deletion request that needs HITL
-                    if tc.name == "get_user_transactions" and "delete" in message.content.lower():
+                    if tc.name == "get_user_transactions" and tc.arguments.get("for_deletion"):
                         transactions_data = result.get("transactions", [])
                         if transactions_data:
                             from schemas.api_tools import TransactionRead
@@ -152,7 +152,6 @@ class MainAgent(BaseAgent):
                                 message=message,
                                 content=deletion_response.message,
                                 tool_calls=executed_tools,
-                                hitl_required=True,
                                 hitl_data={"matches_found": deletion_response.matches_found},
                             )
 
