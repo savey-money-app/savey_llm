@@ -76,8 +76,9 @@ class APIClient:
         for cat in categories:
             if cat.get("title", "").lower() == name_lower:
                 return cat["id"]
-            if cat.get("title_ru", "").lower() == name_lower:
-                return cat["id"]
+            if cat.get("title_ru", ""):
+                if cat.get("title_ru", "").lower() == name_lower:
+                    return cat["id"]
 
         # Category not found — create it
         try:
@@ -91,8 +92,9 @@ class APIClient:
             for cat in categories:
                 if cat.get("title", "").lower() == name_lower:
                     return cat["id"]
-                if cat.get("title_ru", "").lower() == name_lower:
-                    return cat["id"]
+                if cat.get("title_ru", ""):
+                    if cat.get("title_ru", "").lower() == name_lower:   
+                        return cat["id"]
             raise
 
     async def save_transaction(
