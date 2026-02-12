@@ -9,7 +9,6 @@ import redis.asyncio as aioredis
 
 from core.config import settings
 from schemas.message import MessageInput
-from schemas.message import MessageOutput
 from services.llm_service import LLMService
 from services.model_factory import get_model_name
 
@@ -46,25 +45,25 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
 
                 logger.info(f"✅ LLM processing complete for {message_id}, publishing response")
 
-                # Publish the full response
-                output = MessageOutput(
-                    content=response.content,
-                    hitl_data=response.hitl_data,
-                    balance=response.balance,
-                    error=response.error,
-                )
-                await redis.publish(channel, output.model_dump_json())
+                # Build plain dict payload
+                payload = {
+                    "content": response.content,
+                    "hitl_data": response.hitl_data,
+                    "error": response.error,
+                }
+                if response.balance:
+                    payload["balance"] = response.balance.model_dump()
+
+                await redis.publish(channel, json.dumps(payload))
                 logger.info(f"📤 Response published for {message_id}")
 
             except Exception as e:
                 logger.error(f"❌ Error processing job {message_id}: {e}", exc_info=True)
-                error_output = MessageOutput(error=str(e))
-                await redis.publish(channel, error_output.model_dump_json())
+                await redis.publish(channel, json.dumps({"error": str(e), "content": None}))
 
             finally:
-                # Always send done signal so the API-side stream closes
-                done_output = MessageOutput(done=True)
-                await redis.publish(channel, done_output.model_dump_json())
+                # Always send [DONE] so the API-side stream closes
+                await redis.publish(channel, "[DONE]")
                 logger.info(f"🏁 Done signal sent for {message_id}")
 
         except asyncio.CancelledError:
