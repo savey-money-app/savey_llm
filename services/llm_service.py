@@ -3,7 +3,7 @@ LLM Orchestration Service with Multi-Agent Architecture
 
 Routes messages to appropriate specialized agents:
 - MainAgent: General conversation and transaction management
-- StatementParserAgent: Bank statement parsing with OCR/vision
+- StatementParserAgent: Bank statement parsing with vision
 
 Also handles HITL (Human-in-the-Loop) flow responses using LLM-based
 action inference (no client-provided hitl_action required).
@@ -12,6 +12,10 @@ action inference (no client-provided hitl_action required).
 import json
 import logging
 from datetime import datetime
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel
+from pydantic_ai import Agent, ModelSettings
 
 from core.config import settings
 from schemas.api_tools import TransactionCreateShort
@@ -29,46 +33,36 @@ from services.hitl_flows.statement_parsing import StatementParsingFlow
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
-from services.model_factory import create_structured_model, get_model_name
+from services.model_factory import create_model, get_model_name
 from services.prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# Structured output JSON schemas for the HITL resolver LLM call
+# Structured output Pydantic models for the HITL resolver LLM call
 # ============================================================================
 
-_DELETION_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "action": {"type": "string", "enum": ["confirm", "select", "cancel"]},
-        "selected_number": {"type": "integer"},
-        "user_message": {"type": "string"},
-    },
-    "required": ["action", "user_message"],
-}
 
-_STATEMENT_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "action": {"type": "string", "enum": ["confirm", "cancel", "modify"]},
-        "modified_transactions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "amount": {"type": "number"},
-                    "category": {"type": "string"},
-                    "description": {"type": "string"},
-                    "date": {"type": "string"},
-                },
-                "required": ["amount", "category", "description", "date"],
-            },
-        },
-        "user_message": {"type": "string"},
-    },
-    "required": ["action", "user_message"],
-}
+class DeletionDecision(BaseModel):
+    """LLM decision for a transaction deletion HITL flow."""
+    action: Literal["confirm", "select", "cancel"]
+    selected_number: Optional[int] = None
+    user_message: str
+
+
+class ModifiedTransaction(BaseModel):
+    """A transaction modified by the user during HITL."""
+    amount: float
+    category: str
+    description: str
+    date: str
+
+
+class StatementDecision(BaseModel):
+    """LLM decision for a statement parsing HITL flow."""
+    action: Literal["confirm", "cancel", "modify"]
+    modified_transactions: Optional[List[ModifiedTransaction]] = None
+    user_message: str
 
 
 class LLMService:
@@ -95,22 +89,12 @@ class LLMService:
         self.multi_agent_enabled = settings.ENABLE_MULTI_AGENT
 
     async def _route_to_agent(self, message: MessageInput) -> LLMResponse:
-        """
-        Route message to appropriate agent
-
-        Args:
-            message: Input message
-
-        Returns:
-            LLMResponse from the selected agent
-        """
-        # Check for bank statement attachment
+        """Route message to appropriate agent"""
         if message.attachments and len(message.attachments) > 0:
-            logger.info("📄 Routing to StatementParserAgent (attachment detected)")
+            logger.info("Routing to StatementParserAgent (attachment detected)")
             return await self.statement_parser_agent.process_message(message)
 
-        # Default to main agent for all other requests
-        logger.info("🤖 Routing to MainAgent")
+        logger.info("Routing to MainAgent")
         return await self.main_agent.process_message(message)
 
     # ------------------------------------------------------------------
@@ -169,66 +153,53 @@ class LLMService:
         Call the LLM with structured output to infer the user's HITL action.
 
         Returns:
-            Parsed JSON dict with 'action', 'user_message', and optional fields.
+            Parsed dict with 'action', 'user_message', and optional fields.
         """
         system_prompt = prompt_manager.get("hitl_resolver")
         flow_context = self._build_flow_context(
             flow_type, flow_data, user_currency=user_currency, user_fullname=user_fullname
         )
 
-        # Pick the right JSON schema based on flow type
-        if flow_type == HITLFlowType.TRANSACTION_DELETION:
-            response_schema = _DELETION_RESPONSE_SCHEMA
-        else:
-            response_schema = _STATEMENT_RESPONSE_SCHEMA
+        model = create_model()
 
-        model = create_structured_model(
-            response_schema=response_schema,
-            temperature=0.3,
-            max_tokens=settings.MAX_TOKENS,
+        # Pick the right output type based on flow type
+        if flow_type == HITLFlowType.TRANSACTION_DELETION:
+            output_type = DeletionDecision
+        else:
+            output_type = StatementDecision
+
+        agent = Agent(
+            model,
+            system_prompt=system_prompt,
+            output_type=output_type,
+            model_settings=ModelSettings(
+                temperature=0.3,
+                max_tokens=settings.MAX_TOKENS,
+            ),
         )
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Flow context:\n{flow_context}\n\nUser message: {user_message}"},
-        ]
+        result = await agent.run(
+            f"Flow context:\n{flow_context}\n\nUser message: {user_message}"
+        )
 
-        response = await model.ainvoke(messages)
-        content = response.content if hasattr(response, "content") else str(response)
-
-        # Extract text from list-of-parts if needed
-        if isinstance(content, list):
-            content = "".join(
-                part.get("text", "") if isinstance(part, dict) else str(part)
-                for part in content
-            )
-
-        return json.loads(content)
+        # Return as dict for backward compatibility with the handler
+        return result.output.model_dump()
 
     async def _handle_hitl_response(self, message: MessageInput, flow: dict) -> LLMResponse:
         """
         Handle HITL flow continuation using LLM-based action inference.
-
-        The LLM reads the flow context + user message and returns a structured
-        JSON decision (confirm / cancel / select / modify).
-
-        Args:
-            message: Input message from user
-            flow: Pre-loaded flow dict (already retrieved by caller)
         """
         flow_id = flow["flow_id"]
         user_id_str = str(message.user_id)
 
-        logger.info(f"🔄 Handling HITL response for flow {flow_id} (user {user_id_str})")
+        logger.info(f"Handling HITL response for flow {flow_id} (user {user_id_str})")
 
         flow_type = HITLFlowType(flow["flow_type"])
 
-        # Extract user profile from message context
         ctx = message.user_metadata or {}
         user_currency = ctx.get("user_currency", "USD")
         user_fullname = ctx.get("user_fullname", "User")
 
-        # 2. Ask the LLM to interpret the user's reply
         try:
             decision = await self._resolve_hitl_action(
                 flow_type,
@@ -238,7 +209,7 @@ class LLMService:
                 user_fullname=user_fullname,
             )
         except Exception as e:
-            logger.error(f"❌ HITL resolver LLM call failed: {e}")
+            logger.error(f"HITL resolver LLM call failed: {e}")
             return LLMResponse(
                 message_id=message.message_id,
                 user_id=message.user_id,
@@ -251,15 +222,14 @@ class LLMService:
         action = decision.get("action", "confirm")
         user_msg = decision.get("user_message", "")
 
-        logger.info(f"🤖 HITL resolver decided: action={action} for flow {flow_id}")
+        logger.info(f"HITL resolver decided: action={action} for flow {flow_id}")
 
-        # 3. Execute based on the LLM's decision
         content = user_msg
         balance = None
 
         if action == "cancel":
             await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CANCELLED)
-            content = content or "❌ Cancelled. No changes were made."
+            content = content or "Cancelled. No changes were made."
 
         elif action == "confirm":
             await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.CONFIRMED)
@@ -269,7 +239,6 @@ class LLMService:
                 content, balance = await self.parsing_flow.execute_bulk_creation(message.user_id)
 
         elif action == "select" and flow_type == HITLFlowType.TRANSACTION_DELETION:
-            # User selected a specific transaction from the list
             selected_number = decision.get("selected_number")
             flow_data = TransactionDeletionFlowData(**flow["data"])
 
@@ -293,12 +262,10 @@ class LLMService:
                 )
 
         elif action == "modify" and flow_type == HITLFlowType.STATEMENT_PARSING:
-            # User requested modifications to the parsed statement
             raw_transactions = decision.get("modified_transactions", [])
             if not raw_transactions:
                 content = "I couldn't apply the modifications. Could you describe the changes again?"
             else:
-                # Check iteration limit
                 current_iteration = int(flow.get("iteration", 1))
                 if current_iteration >= self.hitl_manager.max_iterations:
                     await self.hitl_manager.update_flow_state(user_id_str, HITLFlowState.EXPIRED)
@@ -307,7 +274,6 @@ class LLMService:
                         f"reached. Please start over by uploading the statement again."
                     )
                 else:
-                    # Parse LLM-produced transactions into TransactionCreateShort
                     modified = []
                     for t in raw_transactions:
                         modified.append(
@@ -336,7 +302,6 @@ class LLMService:
                     )
 
         else:
-            # Unknown combination -- ask user to clarify
             content = "I'm not sure what you'd like to do. Please reply 'confirm', 'cancel', or describe any changes."
 
         return LLMResponse(
@@ -352,33 +317,25 @@ class LLMService:
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """
         Process a message with multi-agent architecture
-
-        Args:
-            message: Input message from user
-
-        Returns:
-            LLMResponse with content and tool call results
         """
         try:
-            logger.info(f"📨 Processing message {message.message_id} from user {message.user_id}")
+            logger.info(f"Processing message {message.message_id} from user {message.user_id}")
 
             # Check if user has an active HITL flow
             active_flow = await self.hitl_manager.get_active_flow(str(message.user_id))
             if active_flow:
-                logger.info(f"🔄 Active HITL flow detected for user {message.user_id}: {active_flow.get('flow_id')}")
+                logger.info(f"Active HITL flow detected for user {message.user_id}: {active_flow.get('flow_id')}")
                 return await self._handle_hitl_response(message, active_flow)
 
             # Route to appropriate agent
             if self.multi_agent_enabled:
                 return await self._route_to_agent(message)
             else:
-                # Fall back to main agent only
-                logger.info("⚠️ Multi-agent disabled, using MainAgent only")
+                logger.info("Multi-agent disabled, using MainAgent only")
                 return await self.main_agent.process_message(message)
 
         except Exception as e:
-            logger.error(f"❌ Error processing message {message.message_id}: {e}", exc_info=True)
-            # Return error response
+            logger.error(f"Error processing message {message.message_id}: {e}", exc_info=True)
             return LLMResponse(
                 message_id=message.message_id,
                 user_id=message.user_id,

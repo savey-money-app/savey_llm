@@ -13,21 +13,43 @@ Also initiates HITL flows when needed for transaction deletion.
 """
 
 import logging
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai.toolsets.function import FunctionToolset
 
 from core.config import settings
-from langchain_core.messages import HumanMessage
 from schemas.message import MessageInput
-from schemas.response import LLMResponse, ToolCall
+from schemas.response import LLMResponse
 from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
-from services.model_factory import get_model_name
+from services.model_factory import create_model, get_model_name
 from services.prompt_manager import prompt_manager
 from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentDeps:
+    """Dependencies passed to PydanticAI tools via RunContext."""
+    user_id: UUID
+    api_client: APIClient
+    user_currency: str = "USD"
+    user_fullname: str = "User"
+
+
+class HITLInterrupt(Exception):
+    """Raised by a tool when a HITL flow is triggered, to short-circuit the agent run."""
+
+    def __init__(self, response: LLMResponse):
+        self.response = response
+        super().__init__("HITL flow triggered")
 
 
 class MainAgent(BaseAgent):
@@ -50,33 +72,96 @@ class MainAgent(BaseAgent):
     def get_system_prompt(self) -> str:
         return prompt_manager.get("main_agent")
 
-    def _define_tools(self) -> List[Any]:
-        """Return LangChain tool definitions from the tool registry."""
-        return self.tool_registry.get_definitions()
+    def _create_toolset(self, message: MessageInput, user_currency: str) -> FunctionToolset:
+        """
+        Create a FunctionToolset that wraps the tool registry.
 
-    async def _execute_tool(self, tool_name: str, arguments: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-        """Execute a tool call via the tool registry."""
-        from uuid import UUID
+        Tools that need HITL detection (get_user_transactions with for_deletion)
+        raise HITLInterrupt to short-circuit the agent run.
+        """
+        # We wrap get_user_transactions with HITL detection.
+        # Other tools are registered from the registry directly.
+        hitl_toolset = FunctionToolset()
+        deletion_flow = self.deletion_flow
 
-        user_uuid = UUID(user_id)
-        return await self.tool_registry.execute(tool_name, user_uuid, arguments)
+        @hitl_toolset.tool(
+            name="get_user_transactions",
+            description=self.tool_registry.get_tool("get_user_transactions").description,
+        )
+        async def get_user_transactions_with_hitl(
+            ctx: RunContext[AgentDeps],
+            limit: int = 20,
+            transaction_type: Optional[str] = None,
+            start_date: Optional[str] = None,
+            end_date: Optional[str] = None,
+            category: Optional[str] = None,
+            for_deletion: bool = False,
+        ) -> dict:
+            result = await self.tool_registry.execute(
+                "get_user_transactions",
+                ctx.deps.user_id,
+                {
+                    "limit": limit,
+                    "transaction_type": transaction_type,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "category": category,
+                    "for_deletion": for_deletion,
+                },
+            )
+
+            if for_deletion:
+                transactions_data = result.get("transactions", [])
+                if transactions_data:
+                    from schemas.api_tools import TransactionRead
+
+                    transactions = [TransactionRead(**t) for t in transactions_data]
+                    deletion_response = await deletion_flow.initiate_deletion_flow(
+                        user_id=ctx.deps.user_id,
+                        message_id=self._current_message_id,
+                        search_query=self._current_message_content,
+                        matched_transactions=transactions,
+                        user_currency=ctx.deps.user_currency,
+                    )
+
+                    # Build a partial LLMResponse and interrupt the agent
+                    raise HITLInterrupt(
+                        response=LLMResponse(
+                            message_id=self._current_message_id,
+                            user_id=ctx.deps.user_id,
+                            content=deletion_response.message,
+                            tool_calls=[],
+                            model=self.model_name,
+                            timestamp=datetime.utcnow(),
+                            hitl_data={"matches_found": deletion_response.matches_found},
+                        )
+                    )
+
+            return result
+
+        # Build a combined toolset: override get_user_transactions, keep the rest
+        combined = FunctionToolset()
+        # Register all tools from base except get_user_transactions
+        for tool in self.tool_registry._tools.values():
+            if tool.name == "get_user_transactions":
+                continue
+            wrapper = self.tool_registry._make_tool_wrapper(tool)
+            combined.tool(wrapper, name=tool.name, description=tool.description)
+
+        return [combined, hitl_toolset]
 
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """
-        Process user message with main agent
+        Process user message with main agent.
 
-        Args:
-            message: Input message
-
-        Returns:
-            LLM response
+        PydanticAI handles the tool loop automatically.
         """
         try:
-            logger.info(f"🤖 Processing message with MainAgent for user {message.user_id}")
+            logger.info(f"Processing message with MainAgent for user {message.user_id}")
 
-            # Initialize model with tools
-            tools = self._define_tools()
-            model = self.initialize_model(tools=tools)
+            # Store message info for HITL interrupt (used by tool wrapper)
+            self._current_message_id = message.message_id
+            self._current_message_content = message.content
 
             # Fetch categories to guide the LLM in category selection
             try:
@@ -99,93 +184,75 @@ class MainAgent(BaseAgent):
             user_currency = ctx.get("user_currency", "USD")
             user_fullname = ctx.get("user_fullname", "User")
 
-            # Combine all additional context for the LLM
+            # Build additional context
             additional_context = (
                 f"User name: {user_fullname}\n"
                 f"User currency: {user_currency}\n\n"
                 f"{category_context}"
             )
 
-            # Build messages with additional context
-            messages = self.build_messages(message, additional_context=additional_context)
+            # Build conversation history for the user prompt
+            history_parts = []
+            if message.user_metadata and "conversation_history" in message.user_metadata:
+                for msg in message.user_metadata["conversation_history"]:
+                    if msg.get("role") == "user":
+                        history_parts.append(f"User: {msg.get('content', '')}")
 
-            # Tool execution loop: keep invoking the model and executing
-            # tool calls until the LLM returns a pure text response (or we
-            # hit the safety limit).
-            max_tool_rounds = 5
-            executed_tools: List[ToolCall] = []
-            content = ""
-            response = await model.ainvoke(messages)
-            tokens_used = None
+            user_prompt = message.content
+            if history_parts:
+                history_text = "\n".join(history_parts)
+                user_prompt = f"Conversation history:\n{history_text}\n\nCurrent message: {message.content}"
 
-            for _round in range(max_tool_rounds):
-                content = self.extract_content(response.content if hasattr(response, "content") else "")
-                tool_calls = self.extract_tool_calls(response)
+            # Build system prompt with context
+            system_prompt = self.get_system_prompt() + f"\n\nAdditional Context:\n{additional_context}"
 
-                if not tool_calls:
-                    # No more tool calls -- we have the final text response
-                    break
+            # Create PydanticAI agent with tools
+            model = create_model(model_name=self.model_name)
+            toolsets = self._create_toolset(message, user_currency)
 
-                # Execute every tool call in this round
-                for tc in tool_calls:
-                    result = await self._execute_tool(tc.name, tc.arguments, str(message.user_id))
-                    tc.result = result
-                    executed_tools.append(tc)
+            agent = Agent(
+                model,
+                system_prompt=system_prompt,
+                deps_type=AgentDeps,
+                toolsets=toolsets,
+                model_settings=ModelSettings(
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                ),
+            )
 
-                    # Check if this is a transaction deletion request that needs HITL
-                    if tc.name == "get_user_transactions" and tc.arguments.get("for_deletion"):
-                        transactions_data = result.get("transactions", [])
-                        if transactions_data:
-                            from schemas.api_tools import TransactionRead
+            deps = AgentDeps(
+                user_id=message.user_id,
+                api_client=self.api_client,
+                user_currency=user_currency,
+                user_fullname=user_fullname,
+            )
 
-                            transactions = [TransactionRead(**t) for t in transactions_data]
+            try:
+                result = await agent.run(user_prompt, deps=deps)
+                content = result.output
+            except HITLInterrupt as hitl:
+                return hitl.response
 
-                            deletion_response = await self.deletion_flow.initiate_deletion_flow(
-                                user_id=message.user_id,
-                                message_id=message.message_id,
-                                search_query=message.content,
-                                matched_transactions=transactions,
-                                user_currency=user_currency,
-                            )
-
-                            return self.build_response(
-                                message=message,
-                                content=deletion_response.message,
-                                tool_calls=executed_tools,
-                                hitl_data={"matches_found": deletion_response.matches_found},
-                            )
-
-                # Feed tool results back to the LLM for the next round
-                tool_results_context = "Tool execution results:\n"
-                for tc in tool_calls:
-                    tool_results_context += f"- {tc.name}: {tc.result}\n"
-
-                messages = messages + [response, HumanMessage(content=tool_results_context)]
-                response = await model.ainvoke(messages)
-
-            # After the loop, extract final content from the last response
-            content = self.extract_content(response.content if hasattr(response, "content") else content)
-
-            # Guard against empty content (e.g. tool errors consumed all rounds
-            # and the LLM never produced a text response)
-            if not content.strip():
-                logger.warning(f"⚠️ MainAgent produced empty content after {max_tool_rounds} tool rounds")
+            if not content or not content.strip():
+                logger.warning("MainAgent produced empty content")
                 content = "I'm sorry, I wasn't able to complete that request. Could you please try again?"
 
-            # Extract balance from tool results if present
+            # Extract balance from tool results by inspecting messages
             user_balance = None
-            for tc in executed_tools:
-                if tc.result and "balance" in tc.result:
-                    from schemas.api_tools import UserBalance
-                    user_balance = UserBalance(**tc.result["balance"])
-                    break
-
-            # Calculate token usage (approximate)
-            if hasattr(response, "response_metadata"):
-                tokens_used = response.response_metadata.get("token_usage", {}).get("total_tokens")
+            for msg in result.all_messages():
+                if hasattr(msg, "parts"):
+                    for part in msg.parts:
+                        if hasattr(part, "content") and isinstance(part.content, dict):
+                            if "balance" in part.content:
+                                from schemas.api_tools import UserBalance
+                                user_balance = UserBalance(**part.content["balance"])
 
             return self.build_response(
-                message=message, content=content, tool_calls=executed_tools, tokens_used=tokens_used, balance=user_balance
+                message=message,
+                content=content,
+                tokens_used=result.usage().total_tokens if result.usage() else None,
+                balance=user_balance,
             )
 
         except Exception as e:
