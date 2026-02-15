@@ -5,7 +5,6 @@ import logging
 from typing import Any, Callable, Dict, List
 from uuid import UUID
 
-from pydantic_ai import RunContext
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from services.api_client import APIClient
@@ -30,7 +29,7 @@ class ToolRegistry:
     Usage::
 
         registry = ToolRegistry(api_client)
-        toolset = registry.create_toolset()  # For PydanticAI Agent
+        toolset = registry.create_toolset(user_id)  # For PydanticAI Agent
         result = await registry.execute("save_transaction", user_id, args)
     """
 
@@ -57,40 +56,40 @@ class ToolRegistry:
     # Public API
     # ------------------------------------------------------------------
 
-    def create_toolset(self) -> FunctionToolset:
+    def create_toolset(self, user_id: UUID) -> FunctionToolset:
         """
         Build a PydanticAI ``FunctionToolset`` from all registered tools.
 
-        Each ``BaseTool`` is wrapped in an async function whose signature
-        is derived from the tool's ``args_schema`` so PydanticAI can
-        generate correct JSON-schema definitions for the LLM.
+        The ``user_id`` is captured in each wrapper closure so the tools
+        don't need ``RunContext`` — this avoids introspection issues with
+        dynamically-generated signatures.
         """
         toolset: FunctionToolset = FunctionToolset()
 
         for tool in self._tools.values():
-            wrapper = self._make_tool_wrapper(tool)
+            wrapper = self._make_tool_wrapper(tool, user_id)
             toolset.tool(wrapper, name=tool.name, description=tool.description)
 
         return toolset
 
     @staticmethod
-    def _make_tool_wrapper(tool: BaseTool) -> Callable:
+    def _make_tool_wrapper(tool: BaseTool, user_id: UUID) -> Callable:
         """
         Create an async wrapper function for a BaseTool that PydanticAI can
-        introspect. The wrapper accepts ``RunContext`` as first arg (for deps)
-        plus all fields from the tool's ``args_schema`` as keyword arguments.
+        introspect.  The ``user_id`` is baked into the closure; the wrapper's
+        visible parameters come from the tool's ``args_schema``.
         """
         schema = tool.args_schema
         fields = schema.model_fields
 
         # Build parameter list dynamically from the Pydantic model fields
-        params: list[inspect.Parameter] = [
-            inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD),
-        ]
+        params: list[inspect.Parameter] = []
+        annotations: dict = {}
+
         for field_name, field_info in fields.items():
-            default = field_info.default if field_info.default is not None else inspect.Parameter.empty
-            if field_info.is_required():
-                default = inspect.Parameter.empty
+            default = inspect.Parameter.empty
+            if not field_info.is_required():
+                default = field_info.default
             params.append(
                 inspect.Parameter(
                     field_name,
@@ -99,19 +98,15 @@ class ToolRegistry:
                     annotation=field_info.annotation,
                 )
             )
+            annotations[field_name] = field_info.annotation
 
-        async def _wrapper(ctx, **kwargs):
-            user_id: UUID = ctx.deps.user_id
+        async def _wrapper(**kwargs):
             return await tool.execute(user_id, kwargs)
 
         # Set proper signature so PydanticAI can extract parameter schemas
         _wrapper.__signature__ = inspect.Signature(params)
         _wrapper.__name__ = tool.name
         _wrapper.__doc__ = tool.description
-        # Attach annotations for PydanticAI schema generation
-        annotations = {"ctx": RunContext}
-        for field_name, field_info in fields.items():
-            annotations[field_name] = field_info.annotation
         _wrapper.__annotations__ = annotations
 
         return _wrapper

@@ -13,12 +13,11 @@ Also initiates HITL flows when needed for transaction deletion.
 """
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai import Agent, ModelSettings
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from core.config import settings
@@ -33,15 +32,6 @@ from services.prompt_manager import prompt_manager
 from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class AgentDeps:
-    """Dependencies passed to PydanticAI tools via RunContext."""
-    user_id: UUID
-    api_client: APIClient
-    user_currency: str = "USD"
-    user_fullname: str = "User"
 
 
 class HITLInterrupt(Exception):
@@ -72,24 +62,41 @@ class MainAgent(BaseAgent):
     def get_system_prompt(self) -> str:
         return prompt_manager.get("main_agent")
 
-    def _create_toolset(self, message: MessageInput, user_currency: str) -> FunctionToolset:
+    def _create_toolsets(
+        self,
+        user_id: UUID,
+        user_currency: str,
+        message_id: str,
+        message_content: str,
+    ) -> list:
         """
-        Create a FunctionToolset that wraps the tool registry.
+        Create toolsets for the PydanticAI Agent.
 
-        Tools that need HITL detection (get_user_transactions with for_deletion)
-        raise HITLInterrupt to short-circuit the agent run.
+        Returns a list of two FunctionToolsets:
+        1. All registry tools except get_user_transactions
+        2. HITL-aware get_user_transactions override
+
+        All tools receive user_id via closure (no RunContext needed).
         """
-        # We wrap get_user_transactions with HITL detection.
-        # Other tools are registered from the registry directly.
+        # 1. Registry toolset for all tools except get_user_transactions
+        registry_toolset = FunctionToolset()
+        for tool in self.tool_registry._tools.values():
+            if tool.name == "get_user_transactions":
+                continue
+            wrapper = self.tool_registry._make_tool_wrapper(tool, user_id)
+            registry_toolset.tool(wrapper, name=tool.name, description=tool.description)
+
+        # 2. HITL-aware get_user_transactions
         hitl_toolset = FunctionToolset()
         deletion_flow = self.deletion_flow
+        tool_registry = self.tool_registry
+        model_name = self.model_name
 
         @hitl_toolset.tool(
             name="get_user_transactions",
             description=self.tool_registry.get_tool("get_user_transactions").description,
         )
         async def get_user_transactions_with_hitl(
-            ctx: RunContext[AgentDeps],
             limit: int = 20,
             transaction_type: Optional[str] = None,
             start_date: Optional[str] = None,
@@ -97,9 +104,9 @@ class MainAgent(BaseAgent):
             category: Optional[str] = None,
             for_deletion: bool = False,
         ) -> dict:
-            result = await self.tool_registry.execute(
+            result = await tool_registry.execute(
                 "get_user_transactions",
-                ctx.deps.user_id,
+                user_id,
                 {
                     "limit": limit,
                     "transaction_type": transaction_type,
@@ -117,21 +124,20 @@ class MainAgent(BaseAgent):
 
                     transactions = [TransactionRead(**t) for t in transactions_data]
                     deletion_response = await deletion_flow.initiate_deletion_flow(
-                        user_id=ctx.deps.user_id,
-                        message_id=self._current_message_id,
-                        search_query=self._current_message_content,
+                        user_id=user_id,
+                        message_id=message_id,
+                        search_query=message_content,
                         matched_transactions=transactions,
-                        user_currency=ctx.deps.user_currency,
+                        user_currency=user_currency,
                     )
 
-                    # Build a partial LLMResponse and interrupt the agent
                     raise HITLInterrupt(
                         response=LLMResponse(
-                            message_id=self._current_message_id,
-                            user_id=ctx.deps.user_id,
+                            message_id=message_id,
+                            user_id=user_id,
                             content=deletion_response.message,
                             tool_calls=[],
-                            model=self.model_name,
+                            model=model_name,
                             timestamp=datetime.utcnow(),
                             hitl_data={"matches_found": deletion_response.matches_found},
                         )
@@ -139,16 +145,7 @@ class MainAgent(BaseAgent):
 
             return result
 
-        # Build a combined toolset: override get_user_transactions, keep the rest
-        combined = FunctionToolset()
-        # Register all tools from base except get_user_transactions
-        for tool in self.tool_registry._tools.values():
-            if tool.name == "get_user_transactions":
-                continue
-            wrapper = self.tool_registry._make_tool_wrapper(tool)
-            combined.tool(wrapper, name=tool.name, description=tool.description)
-
-        return [combined, hitl_toolset]
+        return [registry_toolset, hitl_toolset]
 
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """
@@ -158,10 +155,6 @@ class MainAgent(BaseAgent):
         """
         try:
             logger.info(f"Processing message with MainAgent for user {message.user_id}")
-
-            # Store message info for HITL interrupt (used by tool wrapper)
-            self._current_message_id = message.message_id
-            self._current_message_content = message.content
 
             # Fetch categories to guide the LLM in category selection
             try:
@@ -208,12 +201,16 @@ class MainAgent(BaseAgent):
 
             # Create PydanticAI agent with tools
             model = create_model(model_name=self.model_name)
-            toolsets = self._create_toolset(message, user_currency)
+            toolsets = self._create_toolsets(
+                user_id=message.user_id,
+                user_currency=user_currency,
+                message_id=message.message_id,
+                message_content=message.content,
+            )
 
             agent = Agent(
                 model,
                 system_prompt=system_prompt,
-                deps_type=AgentDeps,
                 toolsets=toolsets,
                 model_settings=ModelSettings(
                     temperature=self.temperature,
@@ -221,15 +218,8 @@ class MainAgent(BaseAgent):
                 ),
             )
 
-            deps = AgentDeps(
-                user_id=message.user_id,
-                api_client=self.api_client,
-                user_currency=user_currency,
-                user_fullname=user_fullname,
-            )
-
             try:
-                result = await agent.run(user_prompt, deps=deps)
+                result = await agent.run(user_prompt)
                 content = result.output
             except HITLInterrupt as hitl:
                 return hitl.response
