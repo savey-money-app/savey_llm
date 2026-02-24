@@ -41,21 +41,46 @@ async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
 
             try:
                 message = MessageInput(**job)
-                response = await llm_service.process_message(message)
 
-                logger.info(f"✅ LLM processing complete for {message_id}, publishing response")
+                tokens_published = 0
 
-                # Build plain dict payload
-                payload = {
-                    "content": response.content,
-                    "hitl_data": response.hitl_data,
-                    "error": response.error,
-                }
-                if response.balance:
-                    payload["balance"] = response.balance.model_dump()
+                async def on_token(token: str) -> None:
+                    nonlocal tokens_published
+                    tokens_published += 1
+                    chunk = {"content": token, "hitl_data": None, "error": None}
+                    await redis.publish(channel, json.dumps(chunk))
 
-                await redis.publish(channel, json.dumps(payload))
-                logger.info(f"📤 Response published for {message_id}")
+                response = await llm_service.stream_message(message, on_token)
+
+                logger.info(f"✅ LLM processing complete for {message_id}, tokens_published={tokens_published}")
+
+                if tokens_published > 0:
+                    # Tokens were streamed — only publish a trailing chunk if there
+                    # is metadata (balance, hitl_data) that wasn't part of the stream.
+                    if response.balance or response.hitl_data or response.error:
+                        meta: dict = {
+                            "content": "",
+                            "hitl_data": response.hitl_data,
+                            "error": response.error,
+                        }
+                        if response.balance:
+                            meta["balance"] = response.balance.model_dump()
+                        await redis.publish(channel, json.dumps(meta))
+                        logger.info(f"📤 Metadata chunk published for {message_id}")
+                    else:
+                        logger.info(f"📤 Stream complete for {message_id} (no extra metadata)")
+                else:
+                    # No tokens streamed (HITL / statement parser / error) —
+                    # publish the complete response as a single chunk.
+                    payload: dict = {
+                        "content": response.content or "",
+                        "hitl_data": response.hitl_data,
+                        "error": response.error,
+                    }
+                    if response.balance:
+                        payload["balance"] = response.balance.model_dump()
+                    await redis.publish(channel, json.dumps(payload))
+                    logger.info(f"📤 Complete response published for {message_id}")
 
             except Exception as e:
                 logger.error(f"❌ Error processing job {message_id}: {e}", exc_info=True)

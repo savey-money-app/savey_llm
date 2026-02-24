@@ -11,6 +11,7 @@ action inference (no client-provided hitl_action required).
 
 import json
 import logging
+from collections.abc import Callable, Awaitable
 from datetime import datetime
 from typing import List, Literal, Optional
 
@@ -313,6 +314,44 @@ class LLMService:
             timestamp=datetime.utcnow(),
             balance=balance,
         )
+
+    async def stream_message(
+        self,
+        message: MessageInput,
+        on_token: Callable[[str], Awaitable[None]],
+    ) -> LLMResponse:
+        """
+        Stream message processing, calling on_token for each text delta.
+
+        HITL flows and statement parsing are non-streaming and return a
+        complete LLMResponse without calling on_token.
+        """
+        try:
+            logger.info(f"Streaming message {message.message_id} from user {message.user_id}")
+
+            active_flow = await self.hitl_manager.get_active_flow(str(message.user_id))
+            if active_flow:
+                logger.info("Active HITL flow — falling back to non-streaming path")
+                return await self._handle_hitl_response(message, active_flow)
+
+            if message.attachments and len(message.attachments) > 0:
+                logger.info("Attachment detected — falling back to non-streaming StatementParserAgent")
+                return await self.statement_parser_agent.process_message(message)
+
+            logger.info("Routing to MainAgent (streaming)")
+            return await self.main_agent.stream_message(message, on_token)
+
+        except Exception as e:
+            logger.error(f"Error streaming message {message.message_id}: {e}", exc_info=True)
+            return LLMResponse(
+                message_id=message.message_id,
+                user_id=message.user_id,
+                content="I apologize, but I encountered an error processing your request. Please try again.",
+                tool_calls=[],
+                model=get_model_name("main"),
+                timestamp=datetime.utcnow(),
+                error=str(e),
+            )
 
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """

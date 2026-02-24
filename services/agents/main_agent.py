@@ -13,6 +13,7 @@ Also initiates HITL flows when needed for transaction deletion.
 """
 
 import logging
+from collections.abc import Callable, Awaitable
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -242,6 +243,102 @@ class MainAgent(BaseAgent):
                 message=message,
                 content=content,
                 tokens_used=result.usage().total_tokens if result.usage() else None,
+                balance=user_balance,
+            )
+
+        except Exception as e:
+            return await self.handle_error(message, e)
+
+    async def stream_message(
+        self,
+        message: MessageInput,
+        on_token: Callable[[str], Awaitable[None]],
+    ) -> LLMResponse:
+        """
+        Process user message with token-level streaming.
+
+        Calls on_token(delta) for each text chunk as it is generated.
+        Falls back to the full response if a HITL interrupt is raised
+        (tool calls complete before text generation starts, so no spurious
+        tokens are emitted before a HITL interrupt).
+        """
+        try:
+            logger.info(f"Streaming message with MainAgent for user {message.user_id}")
+
+            try:
+                categories = await self.api_client.get_categories(message.user_id)
+            except Exception:
+                categories = []
+            if categories:
+                category_lines = []
+                for c in categories:
+                    line = f"- {c['title']}"
+                    if c.get("title_ru"):
+                        line += f" ({c['title_ru']})"
+                    category_lines.append(line)
+                category_context = "Available transaction categories:\n" + "\n".join(category_lines)
+            else:
+                category_context = "No categories defined yet. You may suggest a suitable category name."
+
+            ctx = message.user_metadata or {}
+            user_currency = ctx.get("user_currency", "USD")
+            user_fullname = ctx.get("user_fullname", "User")
+
+            additional_context = (
+                f"User name: {user_fullname}\n"
+                f"User currency: {user_currency}\n\n"
+                f"{category_context}"
+            )
+
+            user_prompt = message.content
+            system_prompt = self.get_system_prompt() + f"\n\nAdditional Context:\n{additional_context}"
+
+            model = create_model(model_name=self.model_name)
+            toolsets = self._create_toolsets(
+                user_id=message.user_id,
+                user_currency=user_currency,
+                message_id=message.message_id,
+                message_content=message.content,
+            )
+
+            agent = Agent(
+                model,
+                system_prompt=system_prompt,
+                toolsets=toolsets,
+                model_settings=ModelSettings(
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                ),
+            )
+
+            content = ""
+            user_balance = None
+
+            try:
+                async with agent.run_stream(user_prompt) as result:
+                    async for delta in result.stream_text(delta=True):
+                        await on_token(delta)
+                        content += delta
+
+                    # Extract balance from tool results
+                    for msg in result.all_messages():
+                        if hasattr(msg, "parts"):
+                            for part in msg.parts:
+                                if hasattr(part, "content") and isinstance(part.content, dict):
+                                    if "balance" in part.content:
+                                        from schemas.api_tools import UserBalance
+                                        user_balance = UserBalance(**part.content["balance"])
+
+            except HITLInterrupt as hitl:
+                return hitl.response
+
+            if not content or not content.strip():
+                logger.warning("MainAgent stream produced empty content")
+                content = "I'm sorry, I wasn't able to complete that request. Could you please try again?"
+
+            return self.build_response(
+                message=message,
+                content=content,
                 balance=user_balance,
             )
 
