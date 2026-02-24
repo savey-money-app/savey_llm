@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # API Client Settings
     SAVEY_API_URL: str = "http://savey_api:8000"
     API_TIMEOUT: int = 30  # Timeout for API calls in seconds
+    LLM_TIMEOUT: int = 30  # Seconds before falling back to OpenAI
     INTERNAL_API_TOKEN: str = "change-me-internal-secret"
 
     # File uploads (shared volume with savey_api)

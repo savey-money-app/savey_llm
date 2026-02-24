@@ -12,10 +12,11 @@ Handles general user interactions with access to all tools:
 Also initiates HITL flows when needed for transaction deletion.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable, Awaitable
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic_ai import Agent, ModelSettings
@@ -28,7 +29,7 @@ from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
-from services.model_factory import create_model, get_model_name
+from services.model_factory import create_model, create_openai_model, get_model_name
 from services.prompt_manager import prompt_manager
 from tools.registry import ToolRegistry
 
@@ -148,6 +149,33 @@ class MainAgent(BaseAgent):
 
         return [registry_toolset, hitl_toolset]
 
+    def _extract_balance(self, result: Any) -> Optional[Any]:
+        """Pull UserBalance out of tool-result messages, if present."""
+        for msg in result.all_messages():
+            if hasattr(msg, "parts"):
+                for part in msg.parts:
+                    if hasattr(part, "content") and isinstance(part.content, dict):
+                        if "balance" in part.content:
+                            from schemas.api_tools import UserBalance
+                            return UserBalance(**part.content["balance"])
+        return None
+
+    async def _execute_stream(
+        self,
+        agent: Any,
+        user_prompt: str,
+        on_token: Callable[[str], Awaitable[None]],
+    ) -> tuple[str, Optional[Any]]:
+        """Run an agent stream, calling on_token per delta. Returns (content, balance)."""
+        content = ""
+        user_balance = None
+        async with agent.run_stream(user_prompt) as result:
+            async for delta in result.stream_text(delta=True):
+                await on_token(delta)
+                content += delta
+            user_balance = self._extract_balance(result)
+        return content, user_balance
+
     async def process_message(self, message: MessageInput) -> LLMResponse:
         """
         Process user message with main agent.
@@ -220,7 +248,27 @@ class MainAgent(BaseAgent):
             )
 
             try:
-                result = await agent.run(user_prompt)
+                try:
+                    result = await asyncio.wait_for(
+                        agent.run(user_prompt), timeout=settings.LLM_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        f"[MainAgent] Primary LLM timed out ({settings.LLM_TIMEOUT}s), "
+                        "falling back to OpenAI"
+                    )
+                    fallback_agent = Agent(
+                        create_openai_model(),
+                        system_prompt=system_prompt,
+                        toolsets=toolsets,
+                        model_settings=ModelSettings(
+                            temperature=self.temperature,
+                            max_tokens=self.max_tokens,
+                        ),
+                    )
+                    result = await asyncio.wait_for(
+                        fallback_agent.run(user_prompt), timeout=settings.LLM_TIMEOUT
+                    )
                 content = result.output
             except HITLInterrupt as hitl:
                 return hitl.response
@@ -229,15 +277,7 @@ class MainAgent(BaseAgent):
                 logger.warning("MainAgent produced empty content")
                 content = "I'm sorry, I wasn't able to complete that request. Could you please try again?"
 
-            # Extract balance from tool results by inspecting messages
-            user_balance = None
-            for msg in result.all_messages():
-                if hasattr(msg, "parts"):
-                    for part in msg.parts:
-                        if hasattr(part, "content") and isinstance(part.content, dict):
-                            if "balance" in part.content:
-                                from schemas.api_tools import UserBalance
-                                user_balance = UserBalance(**part.content["balance"])
+            user_balance = self._extract_balance(result)
 
             return self.build_response(
                 message=message,
@@ -314,20 +354,42 @@ class MainAgent(BaseAgent):
             content = ""
             user_balance = None
 
-            try:
-                async with agent.run_stream(user_prompt) as result:
-                    async for delta in result.stream_text(delta=True):
-                        await on_token(delta)
-                        content += delta
+            # Track emitted tokens to decide whether fallback is safe
+            emitted: list[str] = []
 
-                    # Extract balance from tool results
-                    for msg in result.all_messages():
-                        if hasattr(msg, "parts"):
-                            for part in msg.parts:
-                                if hasattr(part, "content") and isinstance(part.content, dict):
-                                    if "balance" in part.content:
-                                        from schemas.api_tools import UserBalance
-                                        user_balance = UserBalance(**part.content["balance"])
+            async def tracked_on_token(delta: str) -> None:
+                emitted.append(delta)
+                await on_token(delta)
+
+            try:
+                try:
+                    content, user_balance = await asyncio.wait_for(
+                        self._execute_stream(agent, user_prompt, tracked_on_token),
+                        timeout=settings.LLM_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    if not emitted:
+                        logger.warning(
+                            f"[MainAgent] Primary LLM timed out ({settings.LLM_TIMEOUT}s) "
+                            "with no tokens — falling back to OpenAI"
+                        )
+                        fallback_agent = Agent(
+                            create_openai_model(),
+                            system_prompt=system_prompt,
+                            toolsets=toolsets,
+                            model_settings=ModelSettings(
+                                temperature=self.temperature,
+                                max_tokens=self.max_tokens,
+                            ),
+                        )
+                        content, user_balance = await self._execute_stream(
+                            fallback_agent, user_prompt, on_token
+                        )
+                    else:
+                        logger.warning(
+                            f"[MainAgent] LLM timed out mid-stream after {len(emitted)} tokens"
+                        )
+                        content = "".join(emitted)
 
             except HITLInterrupt as hitl:
                 return hitl.response

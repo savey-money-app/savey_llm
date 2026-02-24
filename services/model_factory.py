@@ -30,6 +30,18 @@ def get_model_name(model_type: str = "main") -> str:
     return settings.GEMINI_MODEL_MAIN if model_type == "main" else settings.GEMINI_MODEL_VISION
 
 
+def create_openai_model(model_type: str = "main") -> Model:
+    """
+    Always create an OpenAI model, regardless of the configured provider.
+    Used as the fallback when the primary LLM times out.
+    """
+    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+
+    name = settings.OPENAI_MODEL_MAIN if model_type == "main" else settings.OPENAI_MODEL_VISION
+    return OpenAIChatModel(name, provider=OpenAIProvider(api_key=settings.OPENAI_API_KEY))
+
+
 def create_model(model_type: str = "main", model_name: str | None = None) -> Model:
     """
     Create a PydanticAI Model instance for the configured provider.
