@@ -29,7 +29,7 @@ from services.agents.base_agent import BaseAgent
 from services.hitl_flows.transaction_deletion import TransactionDeletionFlow
 from services.hitl_manager import HITLManager
 from services.api_client import APIClient
-from services.model_factory import create_model, create_openai_model, get_model_name
+from services.model_factory import create_model, create_gemini_model, get_model_name
 from services.prompt_manager import prompt_manager
 from tools.registry import ToolRegistry
 
@@ -255,10 +255,10 @@ class MainAgent(BaseAgent):
                 except asyncio.TimeoutError:
                     logger.warning(
                         f"[MainAgent] Primary LLM timed out ({settings.LLM_TIMEOUT}s), "
-                        "falling back to OpenAI"
+                        "falling back to Gemini"
                     )
                     fallback_agent = Agent(
-                        create_openai_model(),
+                        create_gemini_model(),
                         system_prompt=system_prompt,
                         toolsets=toolsets,
                         model_settings=ModelSettings(
@@ -371,10 +371,10 @@ class MainAgent(BaseAgent):
                     if not emitted:
                         logger.warning(
                             f"[MainAgent] Primary LLM timed out ({settings.LLM_TIMEOUT}s) "
-                            "with no tokens — falling back to OpenAI"
+                            "with no tokens — falling back to Gemini"
                         )
                         fallback_agent = Agent(
-                            create_openai_model(),
+                            create_gemini_model(),
                             system_prompt=system_prompt,
                             toolsets=toolsets,
                             model_settings=ModelSettings(

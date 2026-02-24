@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     REDIS_HITL_PREFIX: str = "hitl:flow:"  # Prefix for HITL flow state keys
 
     # LLM Provider: "gemini" or "openai"
-    LLM_PROVIDER: str = "gemini"
+    LLM_PROVIDER: str = "openai"
 
     # Google Gemini Configuration
     GEMINI_API_KEY: str = ""
