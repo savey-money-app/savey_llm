@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = ""
-    OPENAI_MODEL_MAIN: str = "gpt-4o-mini"
-    OPENAI_MODEL_VISION: str = "gpt-4o"
+    OPENAI_MODEL_MAIN: str = "gpt-5-nano"
+    OPENAI_MODEL_VISION: str = "gpt-5-nano"
 
     # General LLM Settings
     LLM_TEMPERATURE: float = 0.7
