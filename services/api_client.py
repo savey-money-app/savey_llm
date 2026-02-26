@@ -58,6 +58,16 @@ class APIClient:
                 if response.status_code == 204 or not response.content:
                     return {}
                 return response.json()
+        except httpx.HTTPStatusError as e:
+            body = ""
+            try:
+                body = e.response.text
+            except Exception:
+                pass
+            logger.error(
+                f"API request failed to {endpoint}: {e.response.status_code} — body: {body}"
+            )
+            raise Exception(f"API request to {endpoint} failed: {e}")
         except httpx.HTTPError as e:
             logger.error(f"API request failed to {endpoint}: {e}")
             raise Exception(f"API request to {endpoint} failed: {e}")
@@ -114,14 +124,18 @@ class APIClient:
         # Use local date (not UTC) to match server's date.today() in calculate_user_balance
         transaction_date = date if date else datetime.now()
 
+        # Normalize transaction_type to lowercase — LLM may return "Expense" or "INCOME"
+        normalized_type = transaction_type.lower().strip()
+
         payload = {
             "amount": abs(amount),  # API expects positive amount
             "category_id": category_id,
             "description": description,
-            "transaction_type": transaction_type,
+            "transaction_type": normalized_type,
             "date": (transaction_date.date() if isinstance(transaction_date, datetime) else transaction_date).isoformat(),
         }
 
+        logger.info(f"📦 Transaction payload: {payload}")
         result = await self._make_request("POST", "/api/v1/transactions", user_id, json=payload)
         balance = UserBalance(**result["balance"]) if result.get("balance") else None
         return result.get("transaction", result), balance
