@@ -59,7 +59,7 @@ class Settings(BaseSettings):
 
     DOCKER_CONFIG: str = "docker"
     APP_NAME: str = "savey_llm"
-
+    COMPOSE_PROJECT_NAME: str = "llm"
     class Config:
         env_file = ".env"
         case_sensitive = True
