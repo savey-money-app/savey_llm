@@ -197,7 +197,7 @@ class MainAgent(BaseAgent):
                     if c.get("title_ru"):
                         line += f" ({c['title_ru']})"
                     category_lines.append(line)
-                category_context = f"Available transaction categories:\n" + "\n".join(category_lines)
+                category_context = "Available transaction categories:\n" + "\n".join(category_lines)
             else:
                 category_context = "No categories defined yet. You may suggest a suitable category name."
 

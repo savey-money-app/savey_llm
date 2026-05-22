@@ -118,7 +118,7 @@ class LLMService:
 
         if flow_type == HITLFlowType.TRANSACTION_DELETION:
             data = TransactionDeletionFlowData(**flow_data)
-            lines = [f"Flow type: transaction_deletion"]
+            lines = ["Flow type: transaction_deletion"]
             if data.selected_transaction_id:
                 lines.append("A single transaction has already been selected for deletion.")
             lines.append(f"Number of candidate transactions: {len(data.matched_transactions)}")
@@ -131,7 +131,7 @@ class LLMService:
 
         elif flow_type == HITLFlowType.STATEMENT_PARSING:
             data = StatementParsingFlowData(**flow_data)
-            lines = [f"Flow type: statement_parsing"]
+            lines = ["Flow type: statement_parsing"]
             lines.append(f"Number of transactions: {len(data.transactions)}")
             lines.append(f"Iteration: {data.iteration}")
             for i, t in enumerate(data.transactions, 1):

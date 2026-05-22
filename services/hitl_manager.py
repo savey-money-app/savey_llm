@@ -32,9 +32,9 @@ class HITLManager:
         self.flow_prefix = settings.REDIS_HITL_PREFIX
         self.flow_ttl = settings.HITL_FLOW_TTL
         self.max_iterations = settings.HITL_MAX_ITERATIONS
-        self._redis: Optional[redis.Redis] = None
+        self._redis: Any = None
 
-    async def _get_redis(self) -> redis.Redis:
+    async def _get_redis(self) -> Any:
         """Get or create Redis connection"""
         if self._redis is None:
             self._redis = await redis.from_url(self.redis_url, decode_responses=True)

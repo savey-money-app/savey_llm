@@ -76,8 +76,8 @@ class BaseAgent(ABC):
         logger.error(f"Error in {self.get_agent_name()}: {error}")
 
         error_message = (
-            f"I apologize, but I encountered an error while processing your request. "
-            f"Please try again or rephrase your question."
+            "I apologize, but I encountered an error while processing your request. "
+            "Please try again or rephrase your question."
         )
 
         return self.build_response(

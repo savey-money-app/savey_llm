@@ -11,14 +11,12 @@ Flow:
 """
 
 import logging
-from datetime import datetime
 from typing import List, Optional, Tuple
 from uuid import UUID
 
 from schemas.bank_statement import ParsedStatement
 from schemas.hitl import (
     HITLFlowType,
-    StatementParsingConfirmation,
     StatementParsingFlowData,
     StatementParsingPresentationList,
 )

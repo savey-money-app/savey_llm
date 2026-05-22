@@ -1,6 +1,7 @@
-"""Main application entry point for savey_llm"""
-from routes.message_handler import app
+"""Compatibility entry point for the queue worker."""
+import asyncio
+
+from worker import main
 
 if __name__ == "__main__":
-    # Run FastStream application
-    app.run()
+    asyncio.run(main())

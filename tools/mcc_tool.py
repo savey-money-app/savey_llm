@@ -139,7 +139,6 @@ MCC_DATABASE: Dict[str, Dict[str, str]] = {
     "6012": {"description": "Financial Institutions - Merchandise and Services", "category": "Finance"},
     "6051": {"description": "Non-Financial Institutions - Foreign Currency, Money Orders", "category": "Finance"},
     "6211": {"description": "Security Brokers/Dealers", "category": "Finance"},
-    "6300": {"description": "Insurance Underwriting", "category": "Finance"},
     # Personal Services
     "7210": {"description": "Laundry, Cleaning, and Garment Services", "category": "Services"},
     "7211": {"description": "Laundry Services - Family and Commercial", "category": "Services"},

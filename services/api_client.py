@@ -6,7 +6,7 @@ Used by agents to execute transaction and financial operations.
 """
 
 import logging
-from datetime import datetime, date
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 

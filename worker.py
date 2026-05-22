@@ -4,6 +4,7 @@ import json
 import logging
 import signal
 import sys
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -22,7 +23,7 @@ QUEUE_KEY = "chat_queue"
 CHANNEL_PREFIX = "chat"
 
 
-async def process_jobs(redis: aioredis.Redis, llm_service: LLMService) -> None:
+async def process_jobs(redis: Any, llm_service: LLMService) -> None:
     """Main loop: brpop a job, process it, publish response chunks."""
     logger.info(f"Listening on queue '{QUEUE_KEY}'...")
     while True:

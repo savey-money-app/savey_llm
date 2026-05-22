@@ -22,3 +22,14 @@ dependencies = [
     "pytesseract>=0.3.10", # OCR engine (requires tesseract system package)
     "python-multipart>=0.0.22",
 ]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=1.0.0",
+    "pytest>=9.0.2",
+    "ruff>=0.14.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

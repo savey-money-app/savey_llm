@@ -1,8 +1,10 @@
 """Configuration settings for savey_llm service"""
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
     # Redis Configuration
     REDIS_URL: str = "redis://redis:6379"
     REDIS_CHANNEL_INPUT: str = "llm:messages:input"
@@ -60,9 +62,5 @@ class Settings(BaseSettings):
     DOCKER_CONFIG: str = "docker"
     APP_NAME: str = "savey_llm"
     COMPOSE_PROJECT_NAME: str = "llm"
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
 
 settings = Settings()
