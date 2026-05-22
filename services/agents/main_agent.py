@@ -15,7 +15,6 @@ Also initiates HITL flows when needed for transaction deletion.
 import asyncio
 import logging
 from collections.abc import Callable, Awaitable
-from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
@@ -23,6 +22,7 @@ from pydantic_ai import Agent, ModelSettings
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from core.config import settings
+from core.time import utc_now
 from schemas.message import MessageInput
 from schemas.response import LLMResponse
 from services.agents.base_agent import BaseAgent
@@ -140,7 +140,7 @@ class MainAgent(BaseAgent):
                             content=deletion_response.message,
                             tool_calls=[],
                             model=model_name,
-                            timestamp=datetime.utcnow(),
+                            timestamp=utc_now(),
                             hitl_data={"matches_found": deletion_response.matches_found},
                         )
                     )

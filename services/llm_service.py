@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, ModelSettings
 
 from core.config import settings
+from core.time import utc_now
 from schemas.api_tools import TransactionCreateShort
 from schemas.hitl import (
     HITLFlowState,
@@ -217,7 +218,7 @@ class LLMService:
                 content="I couldn't understand your response. Please reply with 'confirm', 'cancel', or describe your changes.",
                 tool_calls=[],
                 model=get_model_name("main"),
-                timestamp=datetime.utcnow(),
+                timestamp=utc_now(),
             )
 
         action = decision.get("action", "confirm")
@@ -298,7 +299,7 @@ class LLMService:
                         content=presentation.message,
                         tool_calls=[],
                         model=get_model_name("main"),
-                        timestamp=datetime.utcnow(),
+                        timestamp=utc_now(),
                         hitl_data={"transaction_count": presentation.transaction_count},
                     )
 
@@ -311,7 +312,7 @@ class LLMService:
             content=content,
             tool_calls=[],
             model=get_model_name("main"),
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
             balance=balance,
         )
 
@@ -349,7 +350,7 @@ class LLMService:
                 content="I apologize, but I encountered an error processing your request. Please try again.",
                 tool_calls=[],
                 model=get_model_name("main"),
-                timestamp=datetime.utcnow(),
+                timestamp=utc_now(),
                 error=str(e),
             )
 
@@ -381,6 +382,6 @@ class LLMService:
                 content="I apologize, but I encountered an error processing your request. Please try again.",
                 tool_calls=[],
                 model=get_model_name("main"),
-                timestamp=datetime.utcnow(),
+                timestamp=utc_now(),
                 error=str(e)
             )

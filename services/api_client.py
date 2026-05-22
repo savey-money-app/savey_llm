@@ -12,6 +12,7 @@ from uuid import UUID
 
 import httpx
 from core.config import settings
+from core.time import utc_now
 from schemas.api_tools import (
     TransactionCreateShort,
     TransactionRead,
@@ -204,7 +205,7 @@ class APIClient:
 
         payload = {
             "transactions": [t.model_dump(mode="json") for t in transactions],
-            "statement_date": (statement_date or datetime.utcnow()).isoformat(),
+            "statement_date": (statement_date or utc_now()).isoformat(),
         }
 
         result = await self._make_request("POST", "/api/v1/transactions/bulk", user_id, json=payload)

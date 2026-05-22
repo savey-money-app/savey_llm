@@ -9,12 +9,13 @@ Flows are keyed by user_id (one active flow per user at a time).
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
 import redis.asyncio as redis
 from core.config import settings
+from core.time import utc_now
 from schemas.hitl import (
     HITLFlowState,
     HITLFlowType,
@@ -63,7 +64,8 @@ class HITLManager:
             HITLRequest with flow ID and details
         """
         flow_id = str(uuid4())
-        expires_at = datetime.utcnow() + timedelta(seconds=self.flow_ttl)
+        created_at = utc_now()
+        expires_at = created_at + timedelta(seconds=self.flow_ttl)
         user_id_str = str(user_id)
 
         # Auto-cancel any existing flow for this user
@@ -92,7 +94,7 @@ class HITLManager:
             "flow_type": flow_type.value,
             "state": HITLFlowState.PENDING.value,
             "data": json.dumps(data),
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": created_at.isoformat(),
             "expires_at": expires_at.isoformat(),
             "iteration": 1,
         }

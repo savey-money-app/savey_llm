@@ -7,9 +7,9 @@ Defines common interface and functionality.
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from core.time import utc_now
 from schemas.message import MessageInput
 from schemas.response import LLMResponse, ToolCall
 
@@ -59,7 +59,7 @@ class BaseAgent(ABC):
             content=content,
             tool_calls=tool_calls or [],
             model=self.model_name,
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
             tokens_used=tokens_used,
             error=error,
             hitl_data=hitl_data,
