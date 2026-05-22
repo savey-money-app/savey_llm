@@ -1,5 +1,5 @@
 """Input message schemas"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
@@ -27,8 +27,8 @@ class MessageInput(BaseModel):
         None, description="Optional file attachments (bank statements, receipts)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "message_id": "msg_123",
@@ -38,6 +38,7 @@ class MessageInput(BaseModel):
                 "attachments": None,
             }
         }
+    )
 
 class MessageOutput(BaseModel):
     """Output message to publish to Redis"""

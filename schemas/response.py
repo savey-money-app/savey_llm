@@ -1,5 +1,5 @@
 """LLM response schemas"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -30,8 +30,8 @@ class LLMResponse(BaseModel):
     # Balance data
     balance: Optional[UserBalance] = Field(None, description="User balance if transaction was created/deleted")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message_id": "msg_123",
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -44,3 +44,4 @@ class LLMResponse(BaseModel):
                 "hitl_data": None,
             }
         }
+    )

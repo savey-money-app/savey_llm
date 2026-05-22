@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .api_tools import TransactionCreateShort
 
@@ -22,8 +22,7 @@ class BankStatement(BaseModel):
     statement_date: Optional[datetime] = Field(None, description="Date of the bank statement")
     transaction_count: int = Field(default=0, description="Number of transactions in this statement")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ParsedStatement(BaseModel):
@@ -40,10 +39,11 @@ class ParsedStatement(BaseModel):
         default=1.0, ge=0.0, le=1.0, description="Confidence score for the parsing (0.0-1.0)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "description": "Parsed bank statement data awaiting user confirmation in HITL flow"
         }
+    )
 
 
 class StatementParsingRequest(BaseModel):
@@ -55,8 +55,9 @@ class StatementParsingRequest(BaseModel):
     attachment_type: str = Field(..., description="MIME type of the attachment (e.g., 'image/png', 'application/pdf')")
     statement_date: Optional[datetime] = Field(None, description="Optional statement date provided by user")
 
-    class Config:
-        json_schema_extra = {"description": "Request to parse bank statement using OCR"}
+    model_config = ConfigDict(
+        json_schema_extra={"description": "Request to parse bank statement using OCR"}
+    )
 
 
 class StatementParsingResponse(BaseModel):
@@ -69,5 +70,6 @@ class StatementParsingResponse(BaseModel):
         default=True, description="Whether this requires HITL confirmation before creating transactions"
     )
 
-    class Config:
-        json_schema_extra = {"description": "Result of bank statement parsing operation"}
+    model_config = ConfigDict(
+        json_schema_extra={"description": "Result of bank statement parsing operation"}
+    )

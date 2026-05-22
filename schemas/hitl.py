@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .api_tools import TransactionCreateShort, TransactionRead
 
@@ -41,8 +41,11 @@ class HITLRequest(BaseModel):
     data: Dict[str, Any] = Field(..., description="Flow-specific data payload")
     expires_at: datetime = Field(..., description="When this flow expires")
 
-    class Config:
-        json_schema_extra = {"description": "Request to initiate a human-in-the-loop confirmation flow"}
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Request to initiate a human-in-the-loop confirmation flow"
+        }
+    )
 
 
 class HITLResponse(BaseModel):
@@ -55,8 +58,11 @@ class HITLResponse(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict, description="Flow-specific response data")
     requires_user_action: bool = Field(default=True, description="Whether user action is required")
 
-    class Config:
-        json_schema_extra = {"description": "Response from a HITL flow containing current state and message"}
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Response from a HITL flow containing current state and message"
+        }
+    )
 
 
 # ============================================================================
@@ -72,10 +78,11 @@ class TransactionDeletionFlowData(BaseModel):
     selected_transaction_id: Optional[UUID] = Field(None, description="Transaction ID selected by user")
     user_currency: str = Field(default="USD", description="User's preferred currency code")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "description": "Data payload for transaction deletion HITL flow with search results"
         }
+    )
 
 
 class TransactionDeletionResponse(BaseModel):
@@ -86,8 +93,11 @@ class TransactionDeletionResponse(BaseModel):
     message: str = Field(..., description="Message asking user to select which transaction to delete")
     flow_id: str = Field(..., description="Flow ID for user to respond with selection")
 
-    class Config:
-        json_schema_extra = {"description": "Response asking user to select which transaction to delete"}
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Response asking user to select which transaction to delete"
+        }
+    )
 
 
 # ============================================================================
@@ -104,10 +114,11 @@ class StatementParsingFlowData(BaseModel):
     user_remarks: Optional[str] = Field(None, description="User's remarks from previous iteration")
     user_currency: str = Field(default="USD", description="User's preferred currency code")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "description": "Data payload for statement parsing HITL flow with parsed transactions"
         }
+    )
 
 
 class StatementParsingConfirmation(BaseModel):
@@ -121,8 +132,11 @@ class StatementParsingConfirmation(BaseModel):
     remarks: Optional[str] = Field(None, description="User's remarks or requested modifications")
     cancel: bool = Field(default=False, description="Whether user wants to cancel the flow")
 
-    class Config:
-        json_schema_extra = {"description": "User's confirmation or modification of parsed bank statement"}
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "User's confirmation or modification of parsed bank statement"
+        }
+    )
 
 
 class StatementParsingPresentationList(BaseModel):
@@ -136,5 +150,8 @@ class StatementParsingPresentationList(BaseModel):
     message: str = Field(..., description="Formatted message presenting the transactions")
     flow_id: str = Field(..., description="Flow ID for user response")
 
-    class Config:
-        json_schema_extra = {"description": "Presentation of parsed transactions for user confirmation"}
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Presentation of parsed transactions for user confirmation"
+        }
+    )
