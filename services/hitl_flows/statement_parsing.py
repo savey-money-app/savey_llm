@@ -36,7 +36,7 @@ class StatementParsingFlow:
 
     def _format_transaction_list(
         self, transactions: List[TransactionCreateShort], currency: str = "USD"
-    ) -> str:
+    ) -> Tuple[str, float, float]:
         """
         Format transactions for user presentation
 
@@ -180,14 +180,15 @@ Flow ID: `{flow_request.flow_id}`"""
             )
 
         flow_id = flow["flow_id"]
-        iteration = int(flow.get("iteration", 1))
+        current_flow_data = StatementParsingFlowData(**flow["data"])
+        iteration = await self.hitl_manager.increment_iteration(user_id_str)
 
-        # Update flow data
-        flow_data = StatementParsingFlowData(
-            transactions=modified_transactions,
-            statement_date=flow["data"].get("statement_date"),
-            iteration=iteration,
-            user_remarks=remarks,
+        flow_data = current_flow_data.model_copy(
+            update={
+                "transactions": modified_transactions,
+                "iteration": iteration,
+                "user_remarks": remarks,
+            }
         )
 
         from schemas.hitl import HITLFlowState
